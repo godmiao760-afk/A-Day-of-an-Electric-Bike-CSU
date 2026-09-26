@@ -169,8 +169,7 @@ class Park extends Phaser.Scene {
 
       if (Math.random() < P.ticketChance) {
         // 被贴条：罚款可以扣成负数，不算进 spent（和 policeCheck 一致）
-        GameState.money -= P.ticketFine;
-        GameState.fines.push({ reason: L.ticketReason, amount: P.ticketFine });
+        addFine(L.ticketReason, P.ticketFine);
         UI.updateHud(this);
         this.time.delayedCall(800, () =>
           UI.alert(this, L.ticketHead + '\n' + L.ticketReason + '　罚 ¥' + P.ticketFine, toClass));

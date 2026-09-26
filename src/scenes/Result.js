@@ -5,8 +5,8 @@ class Result extends Phaser.Scene {
   create() {
     UI.setup(this);
     const s = GameState;
-    const charged = s.battery >= CONFIG.chargedThreshold;
-    const key = (s.late ? 'late' : 'ontime') + '_' + (charged ? 'charged' : 'empty');
+    const charged = isCharged();
+    const key = getEndingKey();
     const title = LINES.endings[key];
     const color = { ontime_charged: '#86efac', ontime_empty: '#fde68a',
                     late_charged: '#93c5fd', late_empty: '#f87171' }[key];

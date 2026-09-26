@@ -11,6 +11,11 @@ const DEBUG_DATA = {};
 // 调试时想改初始状态，在这里改，例如 { route: 'outside', passenger: true, helmetOn: false }
 const DEBUG_STATE = {};
 
+// 场景注册表：所有可进入的 Phaser 场景集中声明，便于检查流程和调试入口。
+const GAME_SCENES = [
+  Boot, Intro, FindCar, NodeScene, Ride, Park, Class, Charge, Result
+];
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
@@ -26,5 +31,5 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
-  scene: [Boot, Intro, FindCar, NodeScene, Ride, Park, Class, Charge, Result]
+  scene: GAME_SCENES
 });

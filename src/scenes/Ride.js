@@ -350,8 +350,7 @@ class Ride extends Phaser.Scene {
     if (s.passenger) {
       // 安全送到，拿报酬
       s.passenger = false;
-      s.money += CONFIG.passenger.reward;
-      s.earned += CONFIG.passenger.reward;
+      earn(CONFIG.passenger.reward);
       UI.sfx(this, 'coin');
       UI.updateHud(this);
       UI.say(this, LINES.passenger.paid, this.player);

@@ -78,6 +78,22 @@ function isHungry() { return GameState.hunger < CONFIG.hunger.hungryBelow; }
 function speedMul() { return isHungry() ? CONFIG.hunger.hungrySpeed : 1; }   // 饿了移动变慢
 function spend(amount) { GameState.money -= amount; GameState.spent += amount; }
 function eat(food) { GameState.hunger = Math.min(100, GameState.hunger + food); }
+function earn(amount) { GameState.money += amount; GameState.earned += amount; }
+
+// 统一记录不计入日常花销的罚款（允许余额变成负数）
+function addFine(reason, amount) {
+  GameState.money -= amount;
+  GameState.fines.push({ reason, amount });
+}
+
+// 结算规则集中在状态层，Result 只负责展示
+function isCharged() {
+  return GameState.battery >= CONFIG.chargedThreshold;
+}
+
+function getEndingKey() {
+  return (GameState.late ? 'late' : 'ontime') + '_' + (isCharged() ? 'charged' : 'empty');
+}
 
 // 交警检查：返回 { passed, fines: [{reason, amount}], total }，并直接扣钱、加时间
 function policeCheck(carrying) {
@@ -87,8 +103,7 @@ function policeCheck(carrying) {
   if (!s.items.license) fines.push({ reason: L.license, amount: F.license });
   if (carrying) fines.push({ reason: L.carry, amount: F.carry });
   const total = fines.reduce((a, f) => a + f.amount, 0);
-  s.money -= total;                  // 罚款可以扣成负数（欠款）
-  s.fines.push(...fines);
+  fines.forEach(f => addFine(f.reason, f.amount));
   s.clock += fines.length ? CONFIG.police.delayMinutes : CONFIG.police.passMinutes;
   return { passed: fines.length === 0, fines, total };
 }
