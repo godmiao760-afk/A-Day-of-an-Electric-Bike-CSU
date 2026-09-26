@@ -6,19 +6,19 @@ const ASSETS = {
   images: {
     //  key            宽   高   占位色      有图片了吗
     player:       { w: 32, h: 32,  color: 0x3b82f6, file: false }, // 主角（步行）
-    rider:        { w: 32, h: 56,  color: 0x2563eb, file: false }, // 主角骑车
+    rider:        { w: 32, h: 56,  color: 0x2563eb, file: true }, // 主角骑车
     pusher:       { w: 40, h: 56,  color: 0x93c5fd, file: false }, // 主角推车
     bike:         { w: 24, h: 48,  color: 0xfacc15, file: false }, // 自己的车（停着）
     bike_other:   { w: 24, h: 48,  color: 0x9ca3af, file: false }, // 别人的车
-    npc_delivery: { w: 32, h: 56,  color: 0xf97316, file: false }, // 外卖车
-    npc_wrong:    { w: 32, h: 56,  color: 0xef4444, file: false }, // 逆行车
-    npc_walker:   { w: 28, h: 28,  color: 0xa855f7, file: false }, // 行人
-    npc_bus:      { w: 64, h: 140, color: 0x16a34a, file: false }, // 校车
+    npc_delivery: { w: 32, h: 56,  color: 0xf97316, file: true }, // 外卖车
+    npc_wrong:    { w: 32, h: 56,  color: 0xef4444, file: true }, // 逆行车
+    npc_walker:   { w: 28, h: 28,  color: 0xa855f7, file: true }, // 行人
+    npc_bus:      { w: 64, h: 140, color: 0x16a34a, file: true }, // 校车
     pile:         { w: 32, h: 40,  color: 0x06b6d4, file: false }, // 充电桩
     slot:         { w: 32, h: 60,  color: 0xffffff, file: false, outline: true }, // 空车位
-    road:         { w: 64, h: 64,  color: 0x374151, file: false }, // 路面
+    road:         { w: 64, h: 64,  color: 0x374151, file: true }, // 路面
     slope:        { w: 64, h: 64,  color: 0x92400e, file: false }, // 坡道
-    grass:        { w: 64, h: 64,  color: 0x166534, file: false }, // 草地
+    grass:        { w: 64, h: 64,  color: 0x166534, file: true }, // 草地
     building:     { w: 64, h: 64,  color: 0x7f1d1d, file: false }, // 楼（宿舍/教学楼）
     rider_carry:  { w: 32, h: 64,  color: 0x1d4ed8, file: false }, // 主角骑车载人
     npc_car:      { w: 56, h: 100, color: 0x64748b, file: false }, // 汽车（校外）
