@@ -33,6 +33,7 @@ const CONFIG = {
     chance: 0.5,             // 第 2 天起，每天有交警的概率（第 1 天必有）
     delayMinutes: 10,        // 被罚耽误的游戏分钟
     passMinutes: 1,          // 检查合格也要停一下
+    encounterChance: 0.6,    // 有交警的日子，校外骑行 / 中午后湖 / 傍晚后湖 各自再掷一次，碰上的概率（第 1 天校外骑行必碰上）
     fines: { helmet: 20, license: 30, carry: 30 }  // 没戴头盔 / 没牌照 / 载人
   },
   passenger: {
@@ -74,7 +75,16 @@ const CONFIG = {
   park: {
     rideSpeed: 120,          // 车棚里骑车速度
     pushSpeedFactor: 0.5,    // 推车速度倍率
-    freeSlots: 2             // 空车位数量
+    freeSlots: 2,            // 空车位数量
+    // 多米诺：骑 / 推着车撞到别人的车，可能倒一排，全部扶起来才能停车
+    dominoChance: 0.5,       // 撞上一次倒下的概率
+    dominoMax: 6,            // 最多连着倒几辆（遇到空位或排尾就停）
+    dominoDelayMs: 90,       // 一辆接一辆倒下的间隔（毫秒）
+    dominoCooldownMs: 1500,  // 撞车判定一次后，多久内不再判定（防止贴着车每帧都掷骰子）
+    liftMinutes: 0.5,        // 每扶起一辆花的游戏分钟
+    // 门口违停：离入口最近，省时间，但可能被贴条
+    ticketChance: 0.5,       // 被贴条的概率
+    ticketFine: 20           // 贴条罚款
   },
   charge: {
     piles: 8,                // 充电桩总数

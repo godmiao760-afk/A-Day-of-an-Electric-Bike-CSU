@@ -28,7 +28,7 @@ class Result extends Phaser.Scene {
       ['找车用时', s.findCarMinutes + ' 分钟'],
       ['停好车时间', s.arriveClock != null ? UI.fmt(s.arriveClock) + (s.late ? '（迟到）' : '（准时）') : '—'],
       ['被撞 / 摔倒', s.hits + ' 次 / ' + s.falls + ' 次'],
-      ['交警罚款', fineText],
+      ['罚款', fineText],
       ['载人收入 / 花销', '+¥' + s.earned + ' / -¥' + s.spent],
       ['今天吃了', s.meals.length ? s.meals.join('、') : '什么都没吃'],
       ['今晚充电', chargeText + '（' + (s.chargeGain >= 0 ? '+' : '') + s.chargeGain + '%）'],

@@ -17,17 +17,19 @@
 |---|---|
 | W A S D | 移动 |
 | F | 交互 / 确认 / 扶车 |
+| E | 背包（骑车时不能开） |
 
 ## 各自改哪里
 
 | 人 | 文件 |
 |---|---|
-| A | `src/ui.js` `src/state.js` `src/scenes/Ride.js` `Intro/Class/Result.js` |
+| A | `src/ui.js` `src/state.js` `src/scenes/Ride.js` `NodeScene.js` `Intro/Class/Result.js` |
 | B | `src/scenes/FindCar.js` `Park.js` `Charge.js` |
 | C | `assets/img/`、`assets/sfx/`、`src/assets.js` |
 | D | `src/config.js`（数值）、`src/lines.js`（文案） |
 
 详细约定见 **CLAUDE.md**，让 AI 干活前先让它读这个文件。
+所有事件的触发条件、数值和随机概率见 **事件流程.md**。
 
 ## 调试
 
