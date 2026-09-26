@@ -5,7 +5,9 @@ const LINES = {
     day1: "大一新生，第一次骑电动车上学。\n昨晚充到一半，又被人拔了……",
     low:  "电不多了，今天祈祷别摔。",
     ok:   "电还算够，今天应该没问题……吧？",
-    allowance: "生活费到账"
+    allowance: "生活费到账",
+    lateCount: "本周已迟到 {n} 次",
+    lastDay:   "今天是最后一天。"
   },
   findCar: {
     start:   "我的车……停哪来着？",
@@ -35,7 +37,10 @@ const LINES = {
     outside:   "校外（近，可能有交警）",
     backpack:  "先翻一下背包",
     goInside:  "走校内，稳一点。",
-    goOutside: "抄个近路，应该没事吧。"
+    goOutside: "抄个近路，应该没事吧。",
+    // v2：校门口透露今天哪条路被挤成单行道
+    rumorInside:  "（听说校内那条路今天挤成单行道了）",
+    rumorOutside: "（听说校外那条路今天挤成单行道了）"
   },
   passenger: {
     ask:  "同学：「我要迟到了！载我一程呗，给你 15 块！」\n（载人来不及走校内，只能走校外）",
@@ -52,7 +57,13 @@ const LINES = {
     carry:    "违规载人",
     fineHead: "「骑电动车要守规矩。」",
     pass:     "「同学，注意安全。」\n——检查合格，放行。",
-    houhu:    "去后湖的路上碰到交警检查……"
+    houhu:    "去后湖的路上碰到交警检查……",
+    // v2：停车受检 / 硬闯
+    askStop:  "前面交警在拦车检查。",
+    optStop:  "停车接受检查",
+    optRun:   "硬闯过去",
+    runOk:    ["冲过去了！心跳好快……", "闯过去了，没人追上来。"],
+    runOmen:  "交警好像记住我的车了……"
   },
   meals: {
     noonTitle:    "中午 · 上午课结束",
@@ -68,7 +79,9 @@ const LINES = {
     ateHouhu:     ["后湖的烧烤，值了！", "吃撑了，骑车回去。"],
     gotLicense:   "牌照办好了！以后不怕查了。",
     skipped:      "省点钱吧……肚子在叫。",
-    fineNoFood:   "罚完款……后湖吃不起了，饿着回去吧。"
+    fineNoFood:   "罚完款……后湖吃不起了，饿着回去吧。",
+    lastMoney:    "（买完就身无分文了）",
+    takes:        "约 {m} 分钟"     // 选项后面显示大概花多久，{m} 会被替换
   },
   ride: {
     start:        "出发！希望今天路上别出事。",
@@ -79,7 +92,10 @@ const LINES = {
     slope:        "又是这个大坡……电量在哭。",
     lowBattery:   "电量告急，千万别再上坡了……",
     dead:         "没电了……只能推过去了。",
-    policeAhead:  "前面好像有交警……"
+    policeAhead:  "前面好像有交警……",
+    // v2：早高峰单行道
+    oneWaySign:   "早高峰\n被挤成单行道",
+    oneWayEnter:  ["怎么全是逆行的！", "这段路被挤成单行道了……"]
   },
   park: {
     riding:  "车棚到了，找个空位。",
@@ -108,7 +124,8 @@ const LINES = {
     afternoon: "下午的课……",
     after:     "下课了。",
     drain:     "白天又骑了几趟",
-    hungry:    "好饿……干什么都没力气。"
+    hungry:    "好饿……干什么都没力气。",
+    lateTotal: "本周累计迟到 {n} 次"
   },
   charge: {
     start:     "22:40，得赶在门禁前充上电。",
@@ -116,18 +133,32 @@ const LINES = {
     broken:    ["坏的。上周就是坏的。", "屏幕都不亮。"],
     qrFail:    "扫码失败……再试一次？",
     qrOk:      "扫上了！",
-    question:  "终于插上了。守着它，还是先回宿舍？",
-    watchDone: "守到门禁，总算充了不少。",
+    plugged:   "终于插上了。回去睡觉，明早再看吧……",
     full:      "（第二天早上）满电！今天运气不错。",
     unplugged: "（第二天早上）……线又被拔了。",
     curfew:    "门禁了，今晚充不上了。",
     noMoney:   "余额不足……充电都充不起了。"
   },
   hungry: "饿得走不动了……",
+  faintWarn: "眼前发黑……得赶紧吃点东西。",
+  // 每日评价（Result 页每天显示，不影响最终结局）
   endings: {
     ontime_charged: "难得顺利的一天",
     ontime_empty:   "明天早上见分晓",
     late_charged:   "至少明天有电了",
     late_empty:     "明天还得推车"
+  },
+  // 最终结局（Ending 场景）：3 个正常 + 3 个隐藏
+  finalEnding: {
+    perfect: { title: "完美结局 · 全勤",     text: "五天，一次都没迟到。\n这辆小电驴，值得一个满电的周末。" },
+    pass:    { title: "合格结局 · 还行",     text: "迟到了几次，但总算熬过了这一周。\n下周……再说吧。" },
+    fail:    { title: "不合格结局 · 常驻迟到", text: "迟到次数太多，老师已经记住你的名字了。\n也许该早点起床，或者早点充电。" },
+    police:  { title: "隐藏结局 · 派出所",   text: "硬闯没闯过去。\n小电驴被扣了，人被请去派出所喝茶。" },
+    faint:   { title: "隐藏结局 · 昏倒",     text: "饿得眼前一黑，倒在了路上。\n醒来时在校医院，手上挂着葡萄糖。" },
+    broke:   { title: "隐藏结局 · 身无分文", text: "钱包空了。\n跪在地上嚎啕大哭：连充电的两块钱都没有了……" }
+  },
+  endingUi: {
+    stats:   "第 {day} 天　累计迟到 {late} 次　硬闯成功 {runs} 次　余额 {money}",
+    restart: "按 F 重新开始"
   }
 };

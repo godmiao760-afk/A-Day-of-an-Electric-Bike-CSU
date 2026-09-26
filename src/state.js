@@ -11,16 +11,19 @@ const GameState = {
   falls: 0,             // 摔倒次数（Ride 写入）
   findCarMinutes: 0,    // 找车用了几分钟（FindCar 写入）
   arriveClock: null,    // 停好车的时刻（Park 写入）
-  chargeResult: 'none', // 'none' | 'noMoney' | 'watch' | 'full' | 'unplugged'（Charge 写入）
+  chargeResult: 'none', // 'none' | 'noMoney' | 'full' | 'unplugged'（Charge 写入）
   chargeGain: 0,        // 今晚充进去多少电（Charge 写入）
 
   // ---- 跨天保留 ----
-  money: 100,           // 钱，可以为负（欠款）
-  hunger: 70,           // 饱腹度 0–100，越低越饿
+  money: 100,           // 钱，可以为负（欠款）；≤ 0 进"没钱"结局
+  hunger: 70,           // 饱腹度 0–100，越低越饿；≤ 0 进"昏倒"结局
   items: { helmet: true, license: false },  // 背包：有没有头盔 / 车上有没有牌照
   helmetOn: false,      // 头盔戴上没有（背包里切换）
+  lateCount: 0,         // 本周累计迟到次数（上午、下午各算一次；Class 写入）
+  runs: 0,              // 硬闯交警成功的次数（越多下次越容易被抓；Ride / Node 写入）
 
   // ---- 每天重置 ----
+  latePM: false,        // 今天下午迟到没有（Class 下午写入）
   route: 'inside',      // 'inside' 校内 | 'outside' 校外（Node 写入）
   passenger: false,     // 是否正载着同学（Node 写入，Ride 送到/跑掉后清掉）
   policeToday: false,   // 今天有没有交警
@@ -37,6 +40,7 @@ function resetDay() {
   s.clockPaused = false;
   s.hp = CONFIG.ride.maxHp;
   s.late = false;
+  s.latePM = false;
   s.hits = 0;
   s.falls = 0;
   s.findCarMinutes = 0;
@@ -61,6 +65,8 @@ function newGame() {
   s.hunger = CONFIG.hunger.start;
   s.items = { helmet: true, license: false };
   s.helmetOn = false;
+  s.lateCount = 0;
+  s.runs = 0;
   resetDay();
 }
 
@@ -93,6 +99,39 @@ function isCharged() {
 
 function getEndingKey() {
   return (GameState.late ? 'late' : 'ontime') + '_' + (isCharged() ? 'charged' : 'empty');
+}
+
+// ---------- v2 最终结局（只计算，不跳场景；跳转由场景 UI.fadeTo(this, 'Ending', { key }) 做）----------
+function isBroke() { return GameState.money <= 0; }      // 没钱了
+function isFainted() { return GameState.hunger <= 0; }   // 饿晕了
+
+// 隐藏结局：昏倒优先于没钱；都没有返回 null（派出所在硬闯时直接跳，不在这里判）
+function hiddenEndingKey() {
+  if (isFainted()) return 'faint';
+  if (isBroke()) return 'broke';
+  return null;
+}
+
+// 第 totalDays 天下午课结束时的最终结局
+function finalEndingKey() {
+  const n = GameState.lateCount;
+  if (n === 0) return 'perfect';
+  return n <= CONFIG.ending.passMaxLate ? 'pass' : 'fail';
+}
+
+function isLastDay() { return GameState.day >= CONFIG.ending.totalDays; }
+
+// 这次硬闯被抓的概率：之前成功闯过越多次越高
+function runCatchChance() {
+  const P = CONFIG.police;
+  return Math.min(P.runCatchMax, P.runCatchBase + GameState.runs * P.runCatchStep);
+}
+
+// 硬闯：掷一次，返回 true = 闯过去了（runs +1），false = 被抓（调用方跳派出所结局）
+function tryRun() {
+  if (Math.random() < runCatchChance()) return false;
+  GameState.runs += 1;
+  return true;
 }
 
 // 交警检查：返回 { passed, fines: [{reason, amount}], total }，并直接扣钱、加时间

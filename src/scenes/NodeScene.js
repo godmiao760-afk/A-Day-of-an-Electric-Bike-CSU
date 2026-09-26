@@ -33,10 +33,15 @@ class NodeScene extends Phaser.Scene {
   // ================= 校门口 =================
   gate() {
     const s = GameState;
+    // 早高峰单行道：两条路线各掷一次，在这里掷好才能透露给玩家，再传给 Ride
+    const W = CONFIG.ride.oneWay.chance;
+    this.oneWay = { inside: Math.random() < W, outside: Math.random() < W };
     // 同学搭车：第一天必出现，之后按概率
     const ask = s.day === 1 || Math.random() < CONFIG.passenger.chance;
     if (ask) {
-      UI.choice(this, LINES.passenger.ask, [LINES.passenger.yes, LINES.passenger.no], (i) => {
+      // 载人只能走校外，校外堵的话也提一句
+      const q = LINES.passenger.ask + (this.oneWay.outside ? '\n' + LINES.gate.rumorOutside : '');
+      UI.choice(this, q, [LINES.passenger.yes, LINES.passenger.no], (i) => {
         if (i === 0) {
           s.passenger = true;
           this.go('outside', LINES.passenger.yes);   // 载人只能走校外
@@ -51,8 +56,11 @@ class NodeScene extends Phaser.Scene {
   }
 
   pickRoute() {
-    UI.choice(this, LINES.gate.route + '\n（现在 ' + UI.fmt(GameState.clock) + '，8:00 上课）',
-      [LINES.gate.inside, LINES.gate.outside, LINES.gate.backpack], (i) => {
+    const G = LINES.gate;
+    // 哪条路堵就透露一句（都堵就两句都加）
+    const rumor = (this.oneWay.inside ? '\n' + G.rumorInside : '') + (this.oneWay.outside ? '\n' + G.rumorOutside : '');
+    UI.choice(this, G.route + '\n（现在 ' + UI.fmt(GameState.clock) + '，8:00 上课）' + rumor,
+      [G.inside, G.outside, G.backpack], (i) => {
         if (i === 0) this.go('inside');
         else if (i === 1) this.go('outside');
         else UI.backpack(this, () => this.pickRoute());   // 看完背包回来继续选
@@ -62,32 +70,42 @@ class NodeScene extends Phaser.Scene {
   go(route, text) {
     GameState.route = route;
     UI.say(this, text || (route === 'inside' ? LINES.gate.goInside : LINES.gate.goOutside));
-    this.time.delayedCall(800, () => UI.fadeTo(this, 'Ride'));
+    // 今天这条路堵不堵，通过 data 传给 Ride
+    this.time.delayedCall(800, () => UI.fadeTo(this, 'Ride', { oneWay: this.oneWay[route] }));
   }
 
   // ================= 中午 / 傍晚 =================
   meal() {
     const s = GameState, P = CONFIG.places, M = LINES.meals;
     const opts = [];
-    // 加一个选项；cost 不够或 ok 为 false 时置灰
-    const add = (id, label, cost, ok = true, note = '') => {
+    // 大概花多久：取 minutes 区间平均值，"约 50 分钟"
+    const takes = (p) => '　' + M.takes.replace('{m}', Math.round((p.minutes[0] + p.minutes[1]) / 2));
+    // 加一个选项；detail 是括号里的说明；cost 不够或 ok 为 false 时置灰。
+    // 花完钱 ≤ 0 时提醒（不置灰，让玩家自己选）。竖排按钮固定 520 宽，超出会被裁掉，所以：
+    // 置灰的不显示时间；"买完就身无分文"的选了就进结局，也省掉说明和时间
+    const add = (id, name, detail, cost, ok = true, note = '') => {
       const noMoney = cost > 0 && s.money < cost;
+      const last = cost > 0 && !noMoney && ok && s.money - cost <= 0;
+      const showTime = P[id] && !noMoney && ok && !last;
       opts.push({
         id,
-        label: label + (cost ? '　¥' + cost : '') + (noMoney ? M.noMoney : !ok ? note : ''),
+        label: name + (last ? '' : detail) + (cost ? '　¥' + cost : '') + (showTime ? takes(P[id]) : '') +
+          (noMoney ? M.noMoney : !ok ? note : last ? M.lastMoney : ''),
         disabled: noMoney || !ok
       });
     };
-    add('canteen', M.canteen + '（+' + P.canteen.food + ' 饱）', P.canteen.cost);
-    add('houhu', M.houhu + '（+' + P.houhu.food + ' 饱，耗电 ' + P.houhu.battery + '%）', P.houhu.cost,
+    add('canteen', M.canteen, '（+' + P.canteen.food + ' 饱）', P.canteen.cost);
+    add('houhu', M.houhu, '（+' + P.houhu.food + ' 饱，耗电 ' + P.houhu.battery + '%）', P.houhu.cost,
       s.battery >= P.houhu.battery, M.noBattery);
-    if (this.kind === 'noon' && !s.items.license) add('license', M.license, P.license.cost);
-    add('skip', M.skip, 0);
+    if (this.kind === 'noon' && !s.items.license) add('license', M.license, '', P.license.cost);
+    add('skip', M.skip, '', 0);   // 不吃：不花时间
     opts.push({ id: 'backpack', label: LINES.gate.backpack });
 
     UI.choice(this, M.question + '（饥饿 ' + Math.round(s.hunger) + '/100）', opts, (i) => {
       const id = opts[i].id;
       if (id === 'backpack') { UI.backpack(this, () => this.meal()); return; }
+      // 每个选项都花时间（中午花完晚于 14:00 下午就迟到）；不吃 = 0
+      if (P[id]) s.clock += Phaser.Math.Between(P[id].minutes[0], P[id].minutes[1]);
       if (id === 'canteen') {
         spend(P.canteen.cost); eat(P.canteen.food); s.meals.push('食堂');
         UI.sfx(this, 'coin');
@@ -104,23 +122,36 @@ class NodeScene extends Phaser.Scene {
     });
   }
 
-  // 去后湖：要出校门，耗电，今天有交警就会被查
+  // 去后湖：要出校门，耗电，今天有交警就可能碰上（停车受检 / 硬闯）
   houhu() {
-    const s = GameState, P = CONFIG.places;
+    const s = GameState, P = CONFIG.places, L = LINES.police;
     s.battery = Math.max(0, s.battery - P.houhu.battery);
-    const eatThere = () => {
+    // extra：吃完那句后面再补一句（硬闯成功的预兆）
+    const eatThere = (extra) => {
       spend(P.houhu.cost); eat(P.houhu.food); s.meals.push('后湖');
       UI.sfx(this, 'coin');
-      this.finish(LINES.meals.ateHouhu);
+      this.finish(extra ? UI.rand(LINES.meals.ateHouhu) + '\n' + extra : LINES.meals.ateHouhu);
     };
     if (s.policeToday && Math.random() < CONFIG.police.encounterChance) {   // 每次单独掷一次是否碰上交警
-      UI.sfx(this, 'whistle');
-      const r = policeCheck(false);
-      UI.updateHud(this);
-      UI.alert(this, LINES.police.houhu + '\n\n' + policeText(r), () => {
-        // 罚完钱还够不够吃
-        if (s.money >= P.houhu.cost) eatThere();
-        else this.finish(LINES.meals.fineNoFood);
+      UI.choice(this, L.askStop, [L.optStop, L.optRun], (i) => {
+        UI.sfx(this, 'whistle');
+        if (i === 0) {
+          // 停车受检：和原来一样
+          const r = policeCheck(false);
+          UI.updateHud(this);
+          UI.alert(this, L.houhu + '\n\n' + policeText(r), () => {
+            // 罚完钱还够不够吃
+            if (s.money >= P.houhu.cost) eatThere();
+            else this.finish(LINES.meals.fineNoFood);
+          });
+        } else if (!tryRun()) {
+          // 硬闯被抓 → 隐藏结局「派出所」
+          UI.fadeTo(this, 'Ending', { key: 'police' });
+        } else {
+          // 闯过去了：不罚款、不耽误时间（runs 已在 tryRun 里 +1）
+          UI.say(this, L.runOk);
+          this.time.delayedCall(1200, () => eatThere(L.runOmen));
+        }
       });
     } else {
       eatThere();
@@ -130,9 +161,10 @@ class NodeScene extends Phaser.Scene {
   finish(text) {
     UI.updateHud(this);
     UI.say(this, text);
-    // 中午 → 下午课；傍晚 → 晚上充电
-    const nextKey = this.kind === 'noon' ? 'Class' : 'Charge';
-    const data = this.kind === 'noon' ? { part: 'afternoon' } : undefined;
+    // 先让独白显示再切场景：钱花光 → 隐藏结局；中午 → 下午课；傍晚 → 晚上充电
+    const k = hiddenEndingKey();
+    const nextKey = k ? 'Ending' : this.kind === 'noon' ? 'Class' : 'Charge';
+    const data = k ? { key: k } : this.kind === 'noon' ? { part: 'afternoon' } : undefined;
     this.time.delayedCall(1400, () => UI.fadeTo(this, nextKey, data));
   }
 }

@@ -1,19 +1,21 @@
 // ===== 启动游戏（A 负责，最后加载）=====
 
-// 调试：改成场景名就能直接从该场景开始，例如 'Node'、'Ride'、'Park'、'Class'、'Charge'、'Result'
+// 调试：改成场景名就能直接从该场景开始，例如 'Node'、'Ride'、'Park'、'Class'、'Charge'、'Result'、'Ending'
 // 正式演示前改回 null！
 const DEBUG_START = null;
 // 各场景的参数：
 //   Node   { kind: 'gate' | 'noon' | 'evening' }
 //   Park   { pushing: true }        测推车
 //   Class  { part: 'morning' | 'afternoon' }
+//   Ending { key: 'perfect' | 'pass' | 'fail' | 'police' | 'faint' | 'broke' }
 const DEBUG_DATA = {};
 // 调试时想改初始状态，在这里改，例如 { route: 'outside', passenger: true, helmetOn: false }
+// 测最终结局：{ day: 5, lateCount: 3 }
 const DEBUG_STATE = {};
 
 // 场景注册表：所有可进入的 Phaser 场景集中声明，便于检查流程和调试入口。
 const GAME_SCENES = [
-  Boot, Intro, FindCar, NodeScene, Ride, Park, Class, Charge, Result
+  Boot, Intro, FindCar, NodeScene, Ride, Park, Class, Charge, Result, Ending
 ];
 
 const game = new Phaser.Game({

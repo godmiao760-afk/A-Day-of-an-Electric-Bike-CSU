@@ -1,6 +1,6 @@
 // ===== 场景4 Charge：晚上找充电桩（B 负责）=====
 // 22:40 → 23:00 门禁。逐个试充电桩：被占 / 坏了 / 扫码失败 / 空闲。
-// 插上后二选一：守着（稳）/ 回宿舍（赌）。
+// 插上就回宿舍睡觉：按 gambleWinRate 充满，否则被拔线只充一点；结果不当场揭晓，第二天 Intro 再说。
 class Charge extends Phaser.Scene {
   constructor() { super('Charge'); }
 
@@ -59,7 +59,7 @@ class Charge extends Phaser.Scene {
 
   update(time, delta) {
     UI.tickClock(this, delta);
-    UI.updateHud(this);
+    if (!this.done) UI.updateHud(this);   // 插上后不再刷新，免得电量条当场露出充没充满
     const f = UI.pressedF(this);
     if (UI.pressedE(this) && !this.done) { this.player.setVelocity(0); UI.backpack(this); }
     if (this.done || UI.blocked(this)) { this.player.setVelocity(0); return; }
@@ -119,33 +119,23 @@ class Charge extends Phaser.Scene {
     UI.hint(this, null);
     UI.sfx(this, 'plug');
     spend(CONFIG.money.charge);   // 扫码付钱
-    UI.updateHud(this);
+    UI.updateHud(this);           // 只刷这一次（显示扣钱），之后 HUD 冻住
     this.player.setVelocity(0);
     this.player.setPosition(pile.x, pile.y + 60);
     pile.setTint(0x22c55e);
 
-    UI.choice(this, LINES.charge.question, ['守着它', '先回宿舍'], (i) => {
-      const C = CONFIG.charge;
-      const remain = Math.max(0, CONFIG.curfew - GameState.clock);
-      if (i === 0) {
-        // 守着：一直充到门禁，稳
-        GameState.battery = Math.min(100, GameState.battery + C.watchPerMinute * remain);
-        GameState.clock = CONFIG.curfew;
-        GameState.chargeResult = 'watch';
-        UI.say(this, LINES.charge.watchDone, this.player);
-      } else if (Math.random() < C.gambleWinRate) {
-        // 回宿舍：赌赢了
-        GameState.battery = 100;
-        GameState.chargeResult = 'full';
-        UI.say(this, LINES.charge.full);
-      } else {
-        // 回宿舍：被拔线
-        GameState.battery = Math.min(100, GameState.battery + C.unpluggedGain);
-        GameState.chargeResult = 'unplugged';
-        UI.say(this, LINES.charge.unplugged);
-      }
-      this.finish();
-    });
+    // 插上就回宿舍：现在就定结果，但不说出来（第二天 Intro 揭晓）
+    const C = CONFIG.charge;
+    if (Math.random() < C.gambleWinRate) {
+      GameState.battery = 100;
+      GameState.chargeResult = 'full';
+    } else {
+      // 半夜被拔线
+      GameState.battery = Math.min(100, GameState.battery + C.unpluggedGain);
+      GameState.chargeResult = 'unplugged';
+    }
+    UI.say(this, LINES.charge.plugged, this.player);
+    this.finish();
   }
 
   curfew() {
@@ -159,7 +149,11 @@ class Charge extends Phaser.Scene {
 
   finish() {
     GameState.chargeGain = Math.round(GameState.battery - this.startBattery);
-    UI.updateHud(this);
-    this.time.delayedCall(1800, () => UI.fadeTo(this, 'Result'));
+    // 扫码 ¥2 可能正好把钱扣到 ≤ 0 → 隐藏结局，不进结算
+    const k = hiddenEndingKey();
+    this.time.delayedCall(1800, () => {
+      if (k) UI.fadeTo(this, 'Ending', { key: k });
+      else UI.fadeTo(this, 'Result');
+    });
   }
 }
