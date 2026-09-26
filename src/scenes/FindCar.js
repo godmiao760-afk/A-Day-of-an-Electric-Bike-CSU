@@ -1,5 +1,6 @@
 // ===== 场景1 FindCar：宿舍楼下找车（B 负责）=====
 // 规则见 项目说明.md 第 8 节。没有失败条件，时钟一直在走。
+// 多米诺：挪开邻车时可能带倒同一排（往远离自己车的方向），全部扶起来才能解锁。
 class FindCar extends Phaser.Scene {
   constructor() { super('FindCar'); }
 
@@ -109,6 +110,14 @@ class FindCar extends Phaser.Scene {
       this.nextBeep = time + Phaser.Math.Clamp(dist * C.beepDistanceFactor, C.beepMin, C.beepMax);
     }
 
+    // ---- 旁边有倒着的车：优先扶起来 ----
+    const down = this.nearestFallen(64);
+    if (down) {
+      UI.hint(this, LINES.park.liftHint);
+      if (f) this.liftBike(down);
+      return;
+    }
+
     // ---- 找最近的车 ----
     const target = this.nearestBike(C.interactionRange);
     if (!target) { UI.hint(this, null); return; }
@@ -164,6 +173,7 @@ class FindCar extends Phaser.Scene {
         this.bikeMarker.setVisible(true);
       }
       if (this.movedCount === 0) { UI.say(this, LINES.findCar.blocked, this.player); return; }
+      if (this.hasFallen()) { UI.say(this, LINES.park.liftFirst, this.player); return; }   // 倒着的车没扶完，不让解锁
       this.unlock();
       return;
     }
