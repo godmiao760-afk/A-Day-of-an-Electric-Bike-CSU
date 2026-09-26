@@ -113,7 +113,7 @@ class NodeScene extends Phaser.Scene {
       UI.sfx(this, 'coin');
       this.finish(LINES.meals.ateHouhu);
     };
-    if (s.policeToday) {
+    if (s.policeToday && Math.random() < CONFIG.police.encounterChance) {   // 每次单独掷一次是否碰上交警
       UI.sfx(this, 'whistle');
       const r = policeCheck(false);
       UI.updateHud(this);

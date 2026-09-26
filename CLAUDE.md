@@ -19,7 +19,7 @@
 
 ## 3. 操作
 
-WASD 移动；F 交互（查看、挪车、解锁、停车、扫码、扶车、确认）；E 背包（骑车时不能开）；弹窗里 A/D（竖排时 W/S）切换、F 确认，也可鼠标点。
+WASD 移动；F 交互（查看、挪车、解锁、停车、扫码、扶车、确认）；扶车既指 Ride 里摔倒后自己扶车，也指 Park 里撞倒别人的车后逐辆扶起。E 背包（骑车时不能开）；弹窗里 A/D（竖排时 W/S）切换、F 确认，也可鼠标点。
 
 ## 4. 文件与负责人
 
@@ -69,8 +69,8 @@ helmetOn       // 头盔戴上没有（背包里切换）
 // 每天重置
 route          // 'inside' | 'outside'（Node 校门口写）
 passenger      // 是否载着同学（Node 写，Ride 送到/跑掉后清掉）
-policeToday    // 今天有没有交警（第 1 天必有）
-fines          // [{ reason, amount }]
+policeToday    // 今天有没有交警（第 1 天必有）；有的话每个可能碰上的地方再单独掷 police.encounterChance
+fines          // [{ reason, amount }]（交警罚款 + 门口违停贴条）
 earned, spent  // 今天赚 / 花的钱（花销不含罚款）
 meals          // ['食堂', '后湖']
 ```
@@ -116,8 +116,8 @@ Boot → Intro → FindCar → Node{gate} → Ride ─┬─ 到达 → Park {pu
 
 - **Node**（NodeScene.js，类名 NodeScene、场景 key 'Node'，因为 Node 和浏览器全局重名）：纯菜单。
   - gate 校门口：同学求搭车（第 1 天必出现，之后按 `passenger.chance`）。答应 → passenger=true，强制走校外；否则选 校内 / 校外 / 背包。
-  - noon / evening：食堂、后湖（耗电 `places.houhu.battery`，今天有交警就会被查）、办牌照（仅中午）、不吃、背包。钱或电不够的选项置灰。
-- **交警**：校外路线在 `policeAt` 处设检查点（仅 policeToday）。没戴头盔 / 没牌照 / 载人各罚一笔，被罚耽误 `delayMinutes`。载人被罚 → 同学跑掉不给钱；安全送到 → +`passenger.reward`。
+  - noon / evening：食堂、后湖（耗电 `places.houhu.battery`，今天有交警时按 `encounterChance` 可能被查）、办牌照（仅中午）、不吃、背包。钱或电不够的选项置灰。
+- **交警**：`policeToday` 每天掷一次（第 1 天必有）。有交警的日子，校外骑行、中午后湖、傍晚后湖**各自再掷一次** `police.encounterChance`，碰上才查（第 1 天校外骑行必碰上）。校外路线检查点在 `policeAt` 处。没戴头盔 / 没牌照 / 载人各罚一笔，被罚耽误 `delayMinutes`。载人被罚 → 同学跑掉不给钱；安全送到 → +`passenger.reward`。
 - **饥饿**：每段课 −`perClass`，过夜 −`overnight`；饿了 FindCar / Park / Charge / Ride 移动都变慢。
 - **钱**：每天早上 +`allowance`；充电扫码 −`money.charge`，钱不够 → chargeResult='noMoney'。
 
@@ -125,6 +125,8 @@ Boot → Intro → FindCar → Node{gate} → Ride ─┬─ 到达 → Park {pu
 - **FindCar**：7:35 开始。车阵中有一辆是自己的（位置随机，左右被夹住）。按 F 查看，认出后变黄；要先挪开一辆邻车（每辆 +`moveCarMinutes` 分钟）才能解锁。越近"滴滴"越快 + 右上角信号格。无失败条件。
 - **Ride**：纵向长路，W 前进 S 刹车 A/D 换道。只在移动时耗电，坡道更快更慢。障碍：外卖车（后方冲上）、逆行车（迎面）、行人（横穿）、校车（慢、大）。被撞 hp−1 + 无敌闪烁；hp=0 摔倒，连按 F 扶车 → 回满血、掉 `fallBatteryCost` 电、falls+1。电量 ≤ 0 → late=true、clock+`deadBatteryMinutes` → 推车进 Park。到顶 → Park。
 - **Park**：车棚大多满，`freeSlots` 个空位（不在入口附近）。推车时速度减半、显示"已迟到"。站到空位按 F 停车 → 记录 arriveClock，晚于 8:00 则 late=true。
+  - **多米诺**：骑 / 推着车撞到别人的车，按 `dominoChance` 从被撞那辆开始往远离玩家的方向倒一排（最多 `dominoMax` 辆，遇到空位 / 排尾停）。靠近倒着的车按 F 扶起（每辆 +`liftMinutes` 分钟）；没扶完不能停车。
+  - **门口违停**：入口旁红色"禁停"区，按 F → 二选一。停了照常记 arriveClock / 迟到，然后按 `ticketChance` 被保安贴条：罚 `ticketFine`，记进 `fines`（不算 spent）。
 - **Class**：上午课结束时钟跳到 12:00；下午课结束扣 `dayDrain` 电，时钟跳到 17:30。
 - **Charge**：到 23:00 门禁。桩状态随机：被占 / 坏了 / 扫码失败（第一次必失败，之后按概率成功）/ 空闲。插上后二选一：守着（每分钟 +`watchPerMinute`% 到 23:00）/ 回宿舍（`gambleWinRate` 充满，否则只 +`unpluggedGain`%）。门禁前没插上 → 'none'。
 - **Result**：充上电 = battery ≥ `chargedThreshold`。结局：准时+充上「难得顺利的一天」；准时+没充上「明天早上见分晓」；迟到+充上「至少明天有电了」；迟到+没充上「明天还得推车」。F 开始第二天（保留电量、钱、饥饿、背包；过夜饿 `overnight`，到账 `allowance`），R 重新开始。
@@ -190,4 +192,4 @@ F12 控制台报错：（粘贴完整报错）
 
 ## 12. 加分项（第 9 小时功能冻结前有空再做）
 
-停车多米诺效果；门口违停选项（快但会被贴条）；背景音乐；手机虚拟摇杆；下雨天气。
+~~停车多米诺效果~~（已做）；~~门口违停选项~~（已做）；背景音乐；手机虚拟摇杆；下雨天气。

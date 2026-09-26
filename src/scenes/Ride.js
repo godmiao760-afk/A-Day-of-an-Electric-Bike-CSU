@@ -29,8 +29,9 @@ class Ride extends Phaser.Scene {
     } else {
       this.slopeTopY = this.slopeBotY = -1;
     }
-    // 交警检查点（只有校外路线、而且今天有交警）
-    this.policeY = (this.route.policeAt && s.policeToday) ? this.startY - len * this.route.policeAt : null;
+    // 交警检查点（只有校外路线、而且今天有交警）：每次单独掷一次是否真的碰上，第一天新手教学必碰上
+    const rideEncounter = s.day === 1 || Math.random() < CONFIG.police.encounterChance;
+    this.policeY = (this.route.policeAt && s.policeToday && rideEncounter) ? this.startY - len * this.route.policeAt : null;
     this.policeDone = false;
 
     this.physics.world.setBounds(this.ROAD_L, 0, this.ROAD_R - this.ROAD_L, H);

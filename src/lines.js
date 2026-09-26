@@ -80,7 +80,23 @@ const LINES = {
     riding:  "车棚到了，找个空位。",
     pushing: "今天又要被点名了。",
     full:    ["满了。", "这里也满了。", "这辆占了两个位置！"],
-    parked:  "停好了，冲！"
+    parked:  "停好了，冲！",
+    // 多米诺
+    domino:    ["完了完了完了……", "哗啦——倒了一排。", "我就轻轻碰了一下！"],
+    lift:      ["扶起来一辆。", "嘿——咻！", "这车怎么这么沉……"],
+    liftFirst: "倒了一排车不管，良心过不去……先扶起来。",
+    liftHint:  "按 F 扶起来",
+    liftedAll: "总算都扶起来了。",
+    // 门口违停
+    noParkZone:    "禁停",
+    illegalHint:   "按 F 停在门口（违停）",
+    illegalAsk:    "教学楼门口不让停车。\n但这里离教室最近……停这儿？",
+    illegalYes:    "就停一会儿",
+    illegalNo:     "算了，去里面找",
+    illegalParked: "停门口了，赶紧跑！",
+    ticketHead:    "保安：「同学，这里禁止停车！」",
+    ticketReason:  "教学楼门口违停",
+    noTicket:      "好像没人管，运气不错。"
   },
   classScene: {
     morning:   "上午的课……",
