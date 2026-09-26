@@ -19,7 +19,7 @@
 
 ## 3. 操作
 
-WASD 移动；F 交互（查看、挪车、解锁、停车、扫码、扶车、确认）；弹窗里 A/D 切换、F 确认，也可鼠标点。
+WASD 移动；F 交互（查看、挪车、解锁、停车、扫码、扶车、确认）；E 背包（骑车时不能开）；弹窗里 A/D（竖排时 W/S）切换、F 确认，也可鼠标点。
 
 ## 4. 文件与负责人
 
@@ -35,6 +35,7 @@ src/scenes/Boot.js      A   加载素材、生成色块
 src/scenes/Intro.js     A   "第 N 天"字幕
 src/scenes/FindCar.js   B   场景1 找车
 src/scenes/Ride.js      A   场景2 骑行
+src/scenes/NodeScene.js A   选择节点（校门口 / 中午 / 傍晚）
 src/scenes/Park.js      B   场景3/3′ 停车
 src/scenes/Class.js     A   上课过场
 src/scenes/Charge.js    B   场景4 充电
@@ -56,10 +57,26 @@ late           // 是否迟到
 hits, falls    // 被撞 / 摔倒次数（Ride 写）
 findCarMinutes // 找车用时（FindCar 写）
 arriveClock    // 停好车的时刻（Park 写）
-chargeResult   // 'none' | 'watch' | 'full' | 'unplugged'（Charge 写）
+chargeResult   // 'none' | 'noMoney' | 'watch' | 'full' | 'unplugged'（Charge 写）
 chargeGain     // 今晚充进去多少电（Charge 写）
+
+// 跨天保留
+money          // 钱，可为负（欠款）
+hunger         // 饱腹度 0–100，< hunger.hungryBelow 算饿，移动变慢
+items          // { helmet: true, license: false }
+helmetOn       // 头盔戴上没有（背包里切换）
+
+// 每天重置
+route          // 'inside' | 'outside'（Node 校门口写）
+passenger      // 是否载着同学（Node 写，Ride 送到/跑掉后清掉）
+policeToday    // 今天有没有交警（第 1 天必有）
+fines          // [{ reason, amount }]
+earned, spent  // 今天赚 / 花的钱（花销不含罚款）
+meals          // ['食堂', '后湖']
 ```
 字段名和含义不许改；新增字段先在群里说，再改这里。
+
+state.js 里的工具函数：`isHungry()`、`speedMul()`（饿了返回 hungrySpeed）、`spend(钱)`、`eat(饱腹)`、`policeCheck(是否载人)`（扣钱、加时间、返回 {passed, fines, total}）、`policeText(结果)`。
 
 ## 6. 时钟
 
@@ -79,7 +96,10 @@ UI.tickClock(scene, delta)
 UI.createHud(scene, showHp) / UI.updateHud(scene)   // 左上角电量条（+ 血量格）
 UI.say(scene, text, target)   // 独白气泡，text 可以是数组（随机一句），target 传精灵则跟随头顶
 UI.hint(scene, text)          // 底部操作提示，传 null 隐藏
-UI.choice(scene, question, [a, b], onPick)   // 二选一，onPick(0 或 1)
+UI.choice(scene, question, options, onPick)   // 选项弹窗。options 是字符串或 {label, disabled}；2 个横排 A/D，3 个以上竖排 W/S；onPick(序号)
+UI.alert(scene, text, onClose)                // 只有"继续"的提示框
+UI.backpack(scene, onClose)                   // 背包（钱、饥饿、戴/摘头盔、牌照）
+UI.pressedE(scene)                            // 这一帧刚按下 E（开背包），用法同 pressedF
 UI.fadeTo(scene, key, data)   // 淡出切场景
 UI.sfx(scene, key)            // 播放音效；没有素材时用合成音
 UI.rand(arrOrStr)             // 数组随机取一个
@@ -88,18 +108,26 @@ UI.rand(arrOrStr)             // 数组随机取一个
 ## 8. 场景流程
 
 ```
-Boot → Intro → FindCar → Ride ─┬─ 到达 → Park {pushing:false} ─┐
-                               └─ 没电 → Park {pushing:true}  ─┤
-               Intro ← [F 开始第二天] ← Result ← Charge ← Class ←┘
+Boot → Intro → FindCar → Node{gate} → Ride ─┬─ 到达 → Park {pushing:false} ─┐
+                                            └─ 没电 → Park {pushing:true}  ─┤
+   Class{morning} ←─────────────────────────────────────────────────────────┘
+   → Node{noon} → Class{afternoon} → Node{evening} → Charge → Result → [F] Intro（第二天）
 ```
+
+- **Node**（NodeScene.js，类名 NodeScene、场景 key 'Node'，因为 Node 和浏览器全局重名）：纯菜单。
+  - gate 校门口：同学求搭车（第 1 天必出现，之后按 `passenger.chance`）。答应 → passenger=true，强制走校外；否则选 校内 / 校外 / 背包。
+  - noon / evening：食堂、后湖（耗电 `places.houhu.battery`，今天有交警就会被查）、办牌照（仅中午）、不吃、背包。钱或电不够的选项置灰。
+- **交警**：校外路线在 `policeAt` 处设检查点（仅 policeToday）。没戴头盔 / 没牌照 / 载人各罚一笔，被罚耽误 `delayMinutes`。载人被罚 → 同学跑掉不给钱；安全送到 → +`passenger.reward`。
+- **饥饿**：每段课 −`perClass`，过夜 −`overnight`；饿了 FindCar / Park / Charge / Ride 移动都变慢。
+- **钱**：每天早上 +`allowance`；充电扫码 −`money.charge`，钱不够 → chargeResult='noMoney'。
 
 - **Intro**：第 1 天用 `LINES.intro.day1`；之后电量 < 40 用 `low`，否则 `ok`。
 - **FindCar**：7:35 开始。车阵中有一辆是自己的（位置随机，左右被夹住）。按 F 查看，认出后变黄；要先挪开一辆邻车（每辆 +`moveCarMinutes` 分钟）才能解锁。越近"滴滴"越快 + 右上角信号格。无失败条件。
 - **Ride**：纵向长路，W 前进 S 刹车 A/D 换道。只在移动时耗电，坡道更快更慢。障碍：外卖车（后方冲上）、逆行车（迎面）、行人（横穿）、校车（慢、大）。被撞 hp−1 + 无敌闪烁；hp=0 摔倒，连按 F 扶车 → 回满血、掉 `fallBatteryCost` 电、falls+1。电量 ≤ 0 → late=true、clock+`deadBatteryMinutes` → 推车进 Park。到顶 → Park。
 - **Park**：车棚大多满，`freeSlots` 个空位（不在入口附近）。推车时速度减半、显示"已迟到"。站到空位按 F 停车 → 记录 arriveClock，晚于 8:00 则 late=true。
-- **Class**：电量 −`dayDrain`，时钟跳到 22:40。
+- **Class**：上午课结束时钟跳到 12:00；下午课结束扣 `dayDrain` 电，时钟跳到 17:30。
 - **Charge**：到 23:00 门禁。桩状态随机：被占 / 坏了 / 扫码失败（第一次必失败，之后按概率成功）/ 空闲。插上后二选一：守着（每分钟 +`watchPerMinute`% 到 23:00）/ 回宿舍（`gambleWinRate` 充满，否则只 +`unpluggedGain`%）。门禁前没插上 → 'none'。
-- **Result**：充上电 = battery ≥ `chargedThreshold`。结局：准时+充上「难得顺利的一天」；准时+没充上「明天早上见分晓」；迟到+充上「至少明天有电了」；迟到+没充上「明天还得推车」。F 开始第二天（只保留电量），R 重新开始。
+- **Result**：充上电 = battery ≥ `chargedThreshold`。结局：准时+充上「难得顺利的一天」；准时+没充上「明天早上见分晓」；迟到+充上「至少明天有电了」；迟到+没充上「明天还得推车」。F 开始第二天（保留电量、钱、饥饿、背包；过夜饿 `overnight`，到账 `allowance`），R 重新开始。
 
 ## 9. 素材约定（C）
 
@@ -132,6 +160,34 @@ F12 控制台报错：（粘贴完整报错）
 找出原因并修复，只改必要的地方。
 ```
 
-## 11. 加分项（第 9 小时功能冻结前有空再做）
+## 11. 分支协作（Git）
+
+| 分支 | 谁用 | 只改这些 |
+|---|---|---|
+| `main` | 写代码的两位（A / B / D） | `src/**`（除了 assets.js 的 `file` 那一栏）、`index.html`、`CLAUDE.md` |
+| `branch-v1` | 美工（C） | `assets/img/`、`assets/sfx/`、`src/assets.js` 里的 `file: true/false` |
+
+规则：
+1. **切分支前先提交**（`git add -A && git commit -m "..."`），否则没提交的改动会被覆盖。AI 正在改文件时不要切分支。
+2. 新贴图 key 由 main 加到 assets.js（写代码的人知道要用什么）；美工只把 `file` 改成 true，不增删 key。这样两边几乎不会冲突。
+3. 同步节奏：每 1–2 小时一次，或者美工交一批素材后。
+   ```
+   # 美工：先拿到最新代码
+   git checkout branch-v1
+   git pull
+   git merge origin/main
+   git push
+
+   # 写代码的：再把素材合进来
+   git checkout main
+   git pull
+   git merge origin/branch-v1
+   git push
+   ```
+4. 合并冲突时：`src/**` 里的代码以 main 为准；`assets/` 和 `file` 标记以 branch-v1 为准。解决完 `git add` + `git commit`。
+5. CLAUDE.md 只在 main 上改，随合并同步到 branch-v1；美工有意见在群里说。
+6. 演示用 main 分支（先合一次 branch-v1）。
+
+## 12. 加分项（第 9 小时功能冻结前有空再做）
 
 停车多米诺效果；门口违停选项（快但会被贴条）；背景音乐；手机虚拟摇杆；下雨天气。

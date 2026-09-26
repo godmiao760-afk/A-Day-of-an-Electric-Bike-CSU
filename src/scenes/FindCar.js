@@ -57,23 +57,34 @@ class FindCar extends Phaser.Scene {
 
     // ---- 界面 ----
     UI.createClock(this);
+    UI.createHud(this, false);
     this.signal = this.add.text(948, 56, '', UI.style(16, '#86efac', {
       backgroundColor: 'rgba(0,0,0,0.6)', padding: { x: 8, y: 3 }
     })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
     this.nextBeep = 0;
     this.done = false;
 
-    UI.say(this, LINES.findCar.start, this.player);
+    UI.say(this, isHungry() ? LINES.hungry : LINES.findCar.start, this.player);
+    // 只提示背包在哪，不提醒要戴头盔
+    this.bpTip = this.add.text(948, 90, LINES.findCar.backpackTip, UI.style(15, '#fde68a', {
+      backgroundColor: 'rgba(0,0,0,0.6)', padding: { x: 8, y: 3 }
+    })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
   }
 
   update(time, delta) {
     UI.tickClock(this, delta);
+    UI.updateHud(this);
     const f = UI.pressedF(this);
+    if (UI.pressedE(this) && !this.done) {
+      this.player.setVelocity(0);
+      if (this.bpTip) { this.bpTip.destroy(); this.bpTip = null; }
+      UI.backpack(this);
+    }
     if (UI.blocked(this) || this.done) { this.player.setVelocity(0); return; }
 
-    // ---- 移动 ----
+    // ---- 移动（饿了走得慢）----
     const d = UI.dir(this);
-    const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(CONFIG.findCar.walkSpeed);
+    const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(CONFIG.findCar.walkSpeed * speedMul());
     this.player.setVelocity(v.x, v.y);
 
     // ---- 找车提示：越近滴得越快，信号格越多 ----
@@ -142,6 +153,6 @@ class FindCar extends Phaser.Scene {
     GameState.findCarMinutes = Math.round(GameState.clock - CONFIG.startClock);
     UI.sfx(this, 'park');
     UI.say(this, LINES.findCar.found, this.player);
-    this.time.delayedCall(1000, () => UI.fadeTo(this, 'Ride'));
+    this.time.delayedCall(1000, () => UI.fadeTo(this, 'Node', { kind: 'gate' }));
   }
 }

@@ -10,7 +10,7 @@ class Park extends Phaser.Scene {
   create() {
     UI.setup(this);
     const P = CONFIG.park;
-    this.speed = P.rideSpeed * (this.pushing ? P.pushSpeedFactor : 1);
+    this.speed = P.rideSpeed * (this.pushing ? P.pushSpeedFactor : 1) * speedMul();   // 饿了更慢
 
     // ---- 布局：两排车棚，中间是通道 ----
     const W = 1600, H = 540;
@@ -67,7 +67,7 @@ class Park extends Phaser.Scene {
     UI.createClock(this);
     UI.createHud(this, false);
     if (this.pushing) {
-      this.add.text(12, 64, '已迟到', UI.style(20, '#ffffff', {
+      this.add.text(12, 92, '已迟到', UI.style(20, '#ffffff', {
         backgroundColor: '#dc2626', padding: { x: 10, y: 4 }
       })).setScrollFactor(0).setDepth(1000);
       UI.say(this, LINES.park.pushing, this.player);
@@ -79,7 +79,9 @@ class Park extends Phaser.Scene {
 
   update(time, delta) {
     UI.tickClock(this, delta);
+    UI.updateHud(this);
     const f = UI.pressedF(this);
+    if (UI.pressedE(this) && !this.done) { this.player.setVelocity(0); UI.backpack(this); }
     if (UI.blocked(this) || this.done) { this.player.setVelocity(0); return; }
 
     // ---- 移动 ----
@@ -115,6 +117,6 @@ class Park extends Phaser.Scene {
     slot.destroy();
     UI.sfx(this, 'park');
     UI.say(this, LINES.park.parked, this.player);
-    this.time.delayedCall(1200, () => UI.fadeTo(this, 'Class'));
+    this.time.delayedCall(1200, () => UI.fadeTo(this, 'Class', { part: 'morning' }));
   }
 }

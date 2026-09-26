@@ -1,10 +1,15 @@
 // ===== 启动游戏（A 负责，最后加载）=====
 
-// 调试：改成场景名就能直接从该场景开始，例如 'Ride'、'Park'、'Charge'、'Result'
+// 调试：改成场景名就能直接从该场景开始，例如 'Node'、'Ride'、'Park'、'Class'、'Charge'、'Result'
 // 正式演示前改回 null！
 const DEBUG_START = null;
-// Park 场景可以传 { pushing: true } 测试推车
+// 各场景的参数：
+//   Node   { kind: 'gate' | 'noon' | 'evening' }
+//   Park   { pushing: true }        测推车
+//   Class  { part: 'morning' | 'afternoon' }
 const DEBUG_DATA = {};
+// 调试时想改初始状态，在这里改，例如 { route: 'outside', passenger: true, helmetOn: false }
+const DEBUG_STATE = {};
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -21,5 +26,5 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
-  scene: [Boot, Intro, FindCar, Ride, Park, Class, Charge, Result]
+  scene: [Boot, Intro, FindCar, NodeScene, Ride, Park, Class, Charge, Result]
 });

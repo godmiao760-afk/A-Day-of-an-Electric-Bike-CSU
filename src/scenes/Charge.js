@@ -49,6 +49,7 @@ class Charge extends Phaser.Scene {
     this.player.setDepth(20);
     this.physics.add.collider(this.player, this.piles);
     this.done = false;
+    this.broke = false;   // 找到过能用的桩，但钱不够
 
     // ---- 界面 ----
     UI.createClock(this);
@@ -60,14 +61,15 @@ class Charge extends Phaser.Scene {
     UI.tickClock(this, delta);
     UI.updateHud(this);
     const f = UI.pressedF(this);
+    if (UI.pressedE(this) && !this.done) { this.player.setVelocity(0); UI.backpack(this); }
     if (this.done || UI.blocked(this)) { this.player.setVelocity(0); return; }
 
     // ---- 门禁到了 ----
     if (GameState.clock >= CONFIG.curfew) { this.curfew(); return; }
 
-    // ---- 移动 ----
+    // ---- 移动（饿了更慢）----
     const d = UI.dir(this);
-    const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(CONFIG.charge.walkSpeed);
+    const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(CONFIG.charge.walkSpeed * speedMul());
     this.player.setVelocity(v.x, v.y);
 
     // ---- 最近的充电桩 ----
@@ -77,7 +79,8 @@ class Charge extends Phaser.Scene {
       if (dd < best) { best = dd; pile = p; }
     });
     if (!pile) { UI.hint(this, null); return; }
-    UI.hint(this, pile.getData('state') === 'qrFail' && pile.getData('tried') ? '按 F 重新扫码' : '按 F 扫码充电');
+    UI.hint(this, (pile.getData('state') === 'qrFail' && pile.getData('tried') ? '按 F 重新扫码' : '按 F 扫码充电') +
+      '（¥' + CONFIG.money.charge + '）');
     if (f) this.tryPile(pile);
   }
 
@@ -92,6 +95,10 @@ class Charge extends Phaser.Scene {
     } else if (st === 'broken') {
       UI.say(this, LINES.charge.broken, this.player);
       pile.setTint(0x555555);
+    } else if (GameState.money < CONFIG.money.charge) {
+      // 能扫码的桩，但钱不够
+      UI.say(this, LINES.charge.noMoney, this.player);
+      this.broke = true;
     } else if (st === 'qrFail') {
       // 第一次必定失败；之后每次按概率成功
       if (!firstTry && Math.random() < CONFIG.charge.qrRetryChance) {
@@ -111,6 +118,8 @@ class Charge extends Phaser.Scene {
     this.done = true;
     UI.hint(this, null);
     UI.sfx(this, 'plug');
+    spend(CONFIG.money.charge);   // 扫码付钱
+    UI.updateHud(this);
     this.player.setVelocity(0);
     this.player.setPosition(pile.x, pile.y + 60);
     pile.setTint(0x22c55e);
@@ -143,8 +152,8 @@ class Charge extends Phaser.Scene {
     this.done = true;
     UI.hint(this, null);
     GameState.clock = CONFIG.curfew;
-    GameState.chargeResult = 'none';
-    UI.say(this, LINES.charge.curfew, this.player);
+    GameState.chargeResult = this.broke ? 'noMoney' : 'none';
+    UI.say(this, this.broke ? LINES.charge.noMoney : LINES.charge.curfew, this.player);
     this.finish();
   }
 

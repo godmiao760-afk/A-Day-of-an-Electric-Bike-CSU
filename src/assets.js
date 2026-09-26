@@ -19,7 +19,11 @@ const ASSETS = {
     road:         { w: 64, h: 64,  color: 0x374151, file: false }, // 路面
     slope:        { w: 64, h: 64,  color: 0x92400e, file: false }, // 坡道
     grass:        { w: 64, h: 64,  color: 0x166534, file: false }, // 草地
-    building:     { w: 64, h: 64,  color: 0x7f1d1d, file: false }  // 楼（宿舍/教学楼）
+    building:     { w: 64, h: 64,  color: 0x7f1d1d, file: false }, // 楼（宿舍/教学楼）
+    rider_carry:  { w: 32, h: 64,  color: 0x1d4ed8, file: false }, // 主角骑车载人
+    npc_car:      { w: 56, h: 100, color: 0x64748b, file: false }, // 汽车（校外）
+    police:       { w: 32, h: 32,  color: 0x1e3a8a, file: false }, // 交警
+    barrier:      { w: 400, h: 16, color: 0xdc2626, file: false }  // 检查点路障
   },
   // 音效放进 assets/sfx/，mp3 格式。有了就改成 true。
   sounds: {
@@ -27,6 +31,8 @@ const ASSETS = {
     hit:  false,  // 被撞
     fall: false,  // 摔倒
     park: false,  // 停好车
-    plug: false   // 插上充电线
+    plug: false,  // 插上充电线
+    whistle: false, // 交警哨声
+    coin: false     // 花钱 / 收钱
   }
 };

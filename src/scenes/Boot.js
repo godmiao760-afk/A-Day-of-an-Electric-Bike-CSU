@@ -44,9 +44,10 @@ class Boot extends Phaser.Scene {
 
     newGame();
 
-    // 调试：直接跳到某个场景（在 main.js 里设置 DEBUG_START）
+    // 调试：直接跳到某个场景（在 main.js 里设置 DEBUG_START / DEBUG_STATE）
     if (typeof DEBUG_START !== 'undefined' && DEBUG_START) {
       if (DEBUG_START === 'Charge') GameState.clock = CONFIG.nightClock;
+      Object.assign(GameState, DEBUG_STATE || {});
       this.scene.start(DEBUG_START, DEBUG_DATA || {});
     } else {
       this.scene.start('Intro');

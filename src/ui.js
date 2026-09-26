@@ -38,7 +38,7 @@ const UI = {
     scene._hint = null;
     scene._clock = null;
     scene._hud = null;
-    scene.keys = scene.input.keyboard.addKeys('W,A,S,D,F,R,UP,DOWN,LEFT,RIGHT');
+    scene.keys = scene.input.keyboard.addKeys('W,A,S,D,F,E,R,UP,DOWN,LEFT,RIGHT');
     scene.cameras.main.fadeIn(300, 0, 0, 0);
   },
 
@@ -63,6 +63,12 @@ const UI = {
   // 不要写在 if 条件的后半截，否则之前按过的 F 会"留着"，走到物体旁边时突然触发。
   pressedF(scene) {
     const down = Phaser.Input.Keyboard.JustDown(scene.keys.F);
+    return down && !UI.busy && !scene._leaving && scene.time.now >= UI.lockUntil;
+  },
+
+  // 这一帧是否"刚按下 E"（开背包）。用法同 pressedF，每帧调用一次。
+  pressedE(scene) {
+    const down = Phaser.Input.Keyboard.JustDown(scene.keys.E);
     return down && !UI.busy && !scene._leaving && scene.time.now >= UI.lockUntil;
   },
 
@@ -129,66 +135,131 @@ const UI = {
     scene._hint.setVisible(true);
   },
 
-  // ---------- 二选一弹窗 ----------
-  // 打开时时钟暂停；选完调用 onPick(0 或 1)
+  // ---------- 选项弹窗 ----------
+  // options：字符串，或 { label, disabled }（disabled 的选项置灰、选不了）
+  // 2 个选项横排（A/D 切换），3 个以上竖排（W/S 切换）。F 确认，也可以鼠标点。
+  // 打开时时钟暂停；选完调用 onPick(序号)
   choice(scene, question, options, onPick) {
     UI.busy = true;
     const openedAt = scene.time.now;
     const D = 2000;
     const objs = [];
-    let index = 0;
     let done = false;
 
-    objs.push(scene.add.rectangle(480, 270, 960, 540, 0x000000, 0.55).setScrollFactor(0).setDepth(D));
-    objs.push(scene.add.rectangle(480, 270, 580, 230, 0x1f2937).setStrokeStyle(3, 0xfacc15).setScrollFactor(0).setDepth(D));
-    objs.push(scene.add.text(480, 212, question, UI.style(22, '#ffffff', {
-      align: 'center', wordWrap: { width: 520, useAdvancedWrap: true }
-    })).setOrigin(0.5).setScrollFactor(0).setDepth(D));
-    objs.push(scene.add.text(480, 362, 'A / D 选择，F 确认（也可以用鼠标点）', UI.style(14, '#9ca3af'))
-      .setOrigin(0.5).setScrollFactor(0).setDepth(D));
+    const opts = options.map(o => typeof o === 'string' ? { label: o } : o);
+    const n = opts.length;
+    const vertical = n > 2;
+    const enabled = (i) => !opts[i].disabled;
+    let index = opts.findIndex(o => !o.disabled);
+    if (index < 0) index = 0;
 
-    const n = options.length;
-    const btns = options.map((label, i) => {
-      const b = scene.add.text(480 + (i - (n - 1) / 2) * 240, 300, label, UI.style(22, '#ffffff', {
-        backgroundColor: '#374151', padding: { x: 18, y: 8 }
-      })).setOrigin(0.5).setScrollFactor(0).setDepth(D).setInteractive({ useHandCursor: true });
-      b.on('pointerover', () => { index = i; refresh(); });
-      b.on('pointerdown', () => pick(i));
+    // 先算问题文字高度，面板高度随内容变化
+    const q = scene.add.text(480, 0, question, UI.style(22, '#ffffff', {
+      align: 'center', wordWrap: { width: 560, useAdvancedWrap: true }
+    })).setOrigin(0.5, 0).setScrollFactor(0).setDepth(D + 1);
+    const BTN_H = 48;
+    const btnArea = vertical ? n * BTN_H : BTN_H + 10;
+    const panelH = Math.min(520, 40 + q.height + 24 + btnArea + 44);
+    const panelTop = 270 - panelH / 2;
+    q.setY(panelTop + 24);
+    const btnTop = panelTop + 24 + q.height + 24;
+
+    objs.push(scene.add.rectangle(480, 270, 960, 540, 0x000000, 0.55).setScrollFactor(0).setDepth(D));
+    objs.push(scene.add.rectangle(480, 270, 640, panelH, 0x1f2937).setStrokeStyle(3, 0xfacc15).setScrollFactor(0).setDepth(D));
+    objs.push(q);
+    objs.push(scene.add.text(480, panelTop + panelH - 20,
+      (vertical ? 'W / S' : 'A / D') + ' 选择，F 确认（也可以用鼠标点）', UI.style(14, '#9ca3af'))
+      .setOrigin(0.5).setScrollFactor(0).setDepth(D + 1));
+
+    const btns = opts.map((o, i) => {
+      const x = vertical ? 480 : 480 + (i - (n - 1) / 2) * 260;
+      const y = vertical ? btnTop + i * BTN_H + BTN_H / 2 : btnTop + BTN_H / 2;
+      const b = scene.add.text(x, y, o.label, UI.style(20, '#ffffff', {
+        backgroundColor: '#374151', padding: { x: 16, y: 7 },
+        align: 'center', fixedWidth: vertical ? 520 : 0
+      })).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1).setInteractive({ useHandCursor: enabled(i) });
+      b.on('pointerover', () => { if (enabled(i)) { index = i; refresh(); } });
+      b.on('pointerdown', () => { if (enabled(i)) pick(i); });
       objs.push(b);
       return b;
     });
 
     function refresh() {
       btns.forEach((b, i) => {
+        if (!enabled(i)) { b.setBackgroundColor('#27272a'); b.setColor('#6b7280'); return; }
         b.setBackgroundColor(i === index ? '#facc15' : '#374151');
         b.setColor(i === index ? '#111111' : '#ffffff');
       });
     }
     refresh();
 
-    const kb = scene.input.keyboard;
-    const left = () => { index = (index + n - 1) % n; refresh(); };
-    const right = () => { index = (index + 1) % n; refresh(); };
+    // 切换时跳过置灰的选项
+    const move = (step) => {
+      for (let k = 1; k <= n; k++) {
+        const j = (index + step * k + n * k) % n;
+        if (enabled(j)) { index = j; break; }
+      }
+      refresh();
+    };
+    const prev = () => move(-1);
+    const next = () => move(1);
     const confirm = (e) => {
       if (e && e.repeat) return;
       if (scene.time.now - openedAt < 200) return; // 防止打开弹窗的那次按键直接确认
-      pick(index);
+      if (enabled(index)) pick(index);
     };
-    kb.on('keydown-A', left); kb.on('keydown-LEFT', left);
-    kb.on('keydown-D', right); kb.on('keydown-RIGHT', right);
+    const kb = scene.input.keyboard;
+    const keysPrev = vertical ? ['keydown-W', 'keydown-UP'] : ['keydown-A', 'keydown-LEFT'];
+    const keysNext = vertical ? ['keydown-S', 'keydown-DOWN'] : ['keydown-D', 'keydown-RIGHT'];
+    keysPrev.forEach(k => kb.on(k, prev));
+    keysNext.forEach(k => kb.on(k, next));
     kb.on('keydown-F', confirm);
 
     function pick(i) {
       if (done) return;
       done = true;
-      kb.off('keydown-A', left); kb.off('keydown-LEFT', left);
-      kb.off('keydown-D', right); kb.off('keydown-RIGHT', right);
+      keysPrev.forEach(k => kb.off(k, prev));
+      keysNext.forEach(k => kb.off(k, next));
       kb.off('keydown-F', confirm);
       objs.forEach(o => o.destroy());
       UI.busy = false;
       UI.lockUntil = scene.time.now + 250;
       onPick(i);
     }
+    // 场景切走时顺手解绑，避免残留监听
+    scene.events.once('shutdown', () => { if (!done) { done = true;
+      keysPrev.forEach(k => kb.off(k, prev)); keysNext.forEach(k => kb.off(k, next)); kb.off('keydown-F', confirm); } });
+  },
+
+  // ---------- 提示弹窗：只有一个"继续" ----------
+  alert(scene, text, onClose) {
+    UI.choice(scene, text, ['继续'], () => { if (onClose) onClose(); });
+  },
+
+  // ---------- 背包 ----------
+  // 显示钱、饥饿、物品；可以戴 / 摘头盔。关掉后调用 onClose
+  backpack(scene, onClose) {
+    const s = GameState, L = LINES.backpack;
+    const money = s.money < 0 ? '欠 ¥' + (-s.money) : '¥' + s.money;
+    const q = '【' + L.title + '】　钱 ' + money + '　饥饿 ' + Math.round(s.hunger) + '/100' +
+      (isHungry() ? '（饿）' : '');
+    const opts = [];
+    if (s.items.helmet) {
+      opts.push({ id: 'helmet', label: '头盔：' + (s.helmetOn ? '已戴上（摘下）' : '没戴（戴上）') });
+    }
+    opts.push({ id: 'license', label: '牌照：' + (s.items.license ? '已上牌' : '没有'), disabled: true });
+    opts.push({ id: 'close', label: L.close });
+
+    UI.choice(scene, q, opts, (i) => {
+      if (opts[i].id === 'helmet') {
+        s.helmetOn = !s.helmetOn;
+        UI.updateHud(scene);
+        UI.say(scene, s.helmetOn ? L.helmetOn : L.helmetOff);
+        UI.backpack(scene, onClose);   // 切换完继续留在背包里
+        return;
+      }
+      if (onClose) onClose();
+    });
   },
 
   // ---------- 切场景 ----------
@@ -204,12 +275,14 @@ const UI = {
   // ---------- 左上角 HUD：电量条（+ 血量格）----------
   createHud(scene, showHp) {
     const hud = { showHp };
-    hud.bg = scene.add.rectangle(12, 12, 250, showHp ? 72 : 42, 0x000000, 0.55)
+    const infoY = showHp ? 78 : 48;   // 钱 / 饥饿 / 头盔 那一行
+    hud.bg = scene.add.rectangle(12, 12, 250, infoY + 26, 0x000000, 0.55)
       .setOrigin(0).setScrollFactor(0).setDepth(1000);
     hud.g = scene.add.graphics().setScrollFactor(0).setDepth(1001);
     hud.batLabel = scene.add.text(22, 20, '电量', UI.style(16)).setScrollFactor(0).setDepth(1001);
     hud.batText = scene.add.text(206, 20, '', UI.style(16)).setScrollFactor(0).setDepth(1001);
     if (showHp) hud.hpLabel = scene.add.text(22, 50, '血量', UI.style(16)).setScrollFactor(0).setDepth(1001);
+    hud.info = scene.add.text(22, infoY, '', UI.style(15)).setScrollFactor(0).setDepth(1001);
     scene._hud = hud;
     UI.updateHud(scene);
     return hud;
@@ -218,8 +291,9 @@ const UI = {
   updateHud(scene) {
     const h = scene._hud;
     if (!h) return;
+    const s = GameState;
     const g = h.g;
-    const b = Phaser.Math.Clamp(GameState.battery, 0, 100);
+    const b = Phaser.Math.Clamp(s.battery, 0, 100);
     g.clear();
     // 电量条
     g.lineStyle(2, 0xffffff, 1).strokeRect(70, 22, 128, 16);
@@ -229,10 +303,15 @@ const UI = {
     if (h.showHp) {
       for (let i = 0; i < CONFIG.ride.maxHp; i++) {
         const x = 70 + i * 28;
-        if (i < GameState.hp) g.fillStyle(0xef4444, 1).fillRect(x, 52, 20, 18);
+        if (i < s.hp) g.fillStyle(0xef4444, 1).fillRect(x, 52, 20, 18);
         g.lineStyle(2, 0xffffff, 1).strokeRect(x, 52, 20, 18);
       }
     }
+    // 钱 / 饥饿 / 头盔
+    const money = s.money < 0 ? '欠¥' + (-s.money) : '¥' + s.money;
+    const info = money + '　饥饿 ' + Math.round(s.hunger) + '　' + (s.helmetOn ? '⛑头盔' : '无头盔');
+    if (h.info.text !== info) h.info.setText(info);
+    h.info.setColor(s.money < 0 || isHungry() ? '#fca5a5' : '#e5e7eb');
   },
 
   // ---------- 音效 ----------
@@ -244,7 +323,9 @@ const UI = {
       hit:  [140, 0.18, 'square'],
       fall: [80, 0.45, 'sawtooth'],
       park: [880, 0.15, 'triangle'],
-      plug: [660, 0.12, 'sine']
+      plug: [660, 0.12, 'sine'],
+      whistle: [2200, 0.35, 'square'],
+      coin: [1200, 0.1, 'triangle']
     };
     const p = presets[key];
     if (p) UI.tone(scene, p[0], p[1], p[2]);
