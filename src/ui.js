@@ -311,7 +311,7 @@ const UI = {
     const money = s.money < 0 ? '欠¥' + (-s.money) : '¥' + s.money;
     const info = money + '　饥饿 ' + Math.round(s.hunger) + '　' + (s.helmetOn ? '⛑头盔' : '无头盔');
     if (h.info.text !== info) h.info.setText(info);
-    h.info.setColor(s.money < 0 || isHungry() ? '#fca5a5' : '#e5e7eb');
+    h.info.setColor(s.money < CONFIG.money.lowWarn || isHungry() ? '#fca5a5' : '#e5e7eb');   // 钱快没了 / 饿了变红（预兆）
   },
 
   // ---------- 音效 ----------

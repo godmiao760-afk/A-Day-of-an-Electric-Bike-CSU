@@ -2,10 +2,14 @@
 // 唯一的动作场景：血量 + 电量。规则见 CLAUDE.md 第 8 节。
 // W 前进，S 刹车，A/D 换道。被撞扣血 → 血为 0 摔倒 → 连按 F 扶车（回满血、掉电）。
 // 两条路线（GameState.route）：校内远、有坡、没交警；校外近、车多、可能有交警检查点。
-// 载人（GameState.passenger）时更慢更耗电，到了拿报酬；被交警拦下同学会跑掉。
+// 载人（GameState.passenger）时更慢更耗电，到了拿报酬；交警检查点二选一：停车受检（被罚同学会跑掉）/ 硬闯。
+// 车和车不开物理碰撞，按车道规则让行（trafficStep）；早高峰可能有一段单行道，逆行车变多。
 // 没电 → 推车进 Park（迟到）；骑到顶部教学楼 → Park。
 class Ride extends Phaser.Scene {
   constructor() { super('Ride'); }
+
+  // NodeScene 传进来今天这条路堵不堵（单行道）；DEBUG 直接进来时 data 可能是 {}
+  init(data) { this.oneWay = !!(data && data.oneWay); }
 
   create() {
     UI.setup(this);
@@ -29,6 +33,13 @@ class Ride extends Phaser.Scene {
     } else {
       this.slopeTopY = this.slopeBotY = -1;
     }
+    // 早高峰单行道路段（和坡道一样按路程比例算 y 区间）
+    if (this.oneWay) {
+      this.oneWayTopY = this.startY - len * R.oneWay.range[1];
+      this.oneWayBotY = this.startY - len * R.oneWay.range[0];
+    } else {
+      this.oneWayTopY = this.oneWayBotY = -1;
+    }
     // 交警检查点（只有校外路线、而且今天有交警）：每次单独掷一次是否真的碰上，第一天新手教学必碰上
     const rideEncounter = s.day === 1 || Math.random() < CONFIG.police.encounterChance;
     this.policeY = (this.route.policeAt && s.policeToday && rideEncounter) ? this.startY - len * this.route.policeAt : null;
@@ -49,6 +60,13 @@ class Ride extends Phaser.Scene {
         this.slopeBotY - this.slopeTopY, 'slope').setOrigin(0).setAlpha(0.85);
       this.add.text(this.ROAD_R + 20, this.slopeBotY - 40, '⬆ 大坡\n耗电翻倍', UI.style(22, '#fde68a'));
       this.add.text(this.ROAD_L - 20, this.slopeTopY + 20, '坡顶', UI.style(20, '#fde68a')).setOrigin(1, 0);
+    }
+    if (this.oneWay) {
+      // 单行道路段：路面盖一层淡红色，路边立牌子
+      this.add.rectangle(this.ROAD_L, this.oneWayTopY, this.ROAD_R - this.ROAD_L,
+        this.oneWayBotY - this.oneWayTopY, 0xef4444, 0.12).setOrigin(0);
+      this.add.text(this.ROAD_L - 20, this.oneWayBotY - 60, LINES.ride.oneWaySign,
+        UI.style(20, '#fca5a5', { align: 'right' })).setOrigin(1, 0);
     }
 
     // 车道虚线
@@ -71,8 +89,9 @@ class Ride extends Phaser.Scene {
       UI.style(24, '#fecaca')).setOrigin(0.5);
 
     // 交警检查点
+    this.barrier = null;
     if (this.policeY) {
-      this.add.image(480, this.policeY, 'barrier').setDepth(5);
+      this.barrier = this.add.image(480, this.policeY, 'barrier').setDepth(5);
       this.add.image(this.ROAD_R - 30, this.policeY - 30, 'police').setDepth(6);
       this.add.image(this.ROAD_L + 30, this.policeY - 30, 'police').setDepth(6);
       this.add.text(this.ROAD_R + 20, this.policeY - 20, '交警检查', UI.style(22, '#93c5fd'));
@@ -100,6 +119,7 @@ class Ride extends Phaser.Scene {
     this.warnedLow = false;
     this.warnedSlope = false;
     this.warnedPolice = false;
+    this.warnedOneWay = false;
 
     // ---- 界面 ----
     UI.createClock(this);
@@ -119,6 +139,7 @@ class Ride extends Phaser.Scene {
     UI.updateHud(this);
     const f = UI.pressedF(this);
     if (UI.pressedE(this)) UI.say(this, LINES.backpack.noRide, this.player);
+    this.trafficStep(delta);   // 车道让行规则：弹窗、摔倒时障碍照样在动，所以放在最前面每帧都跑
     if (UI.blocked(this) || this.ending) { this.player.setVelocity(0); return; }
 
     const R = CONFIG.ride;
@@ -146,8 +167,9 @@ class Ride extends Phaser.Scene {
     const d = UI.dir(this);
     const top = R.speed * mul;
     const target = d.y < 0 ? -top : 0;
-    const rate = d.y > 0 ? 0.25 : (d.y < 0 ? 0.06 : 0.03);   // 刹车快，松手慢慢停
-    this.vy = Phaser.Math.Linear(this.vy, target, rate);
+    const rate = d.y > 0 ? 0.25 : (d.y < 0 ? 0.06 : 0.03);   // 刹车快，松手慢慢停（按 60fps 标定）
+    const k = 1 - Math.pow(1 - rate, delta / 16.67);          // 换算成和帧率无关的系数，144Hz 和 60Hz 手感一致
+    this.vy = Phaser.Math.Linear(this.vy, target, k);
     if (Math.abs(this.vy) < 2) this.vy = 0;
     p.setVelocity(d.x * R.sideSpeed * speedMul(), this.vy);
     p.setAngle(d.x * 8);
@@ -159,6 +181,7 @@ class Ride extends Phaser.Scene {
 
     // ---- 独白提示 ----
     if (onSlope && !this.warnedSlope) { this.warnedSlope = true; UI.say(this, LINES.ride.slope, p); }
+    if (this.inOneWay(p.y) && !this.warnedOneWay) { this.warnedOneWay = true; UI.say(this, LINES.ride.oneWayEnter, p); }
     if (s.battery < 15 && !this.warnedLow) { this.warnedLow = true; UI.say(this, LINES.ride.lowBattery, p); }
     if (this.policeY && !this.warnedPolice && p.y - this.policeY < 700) {
       this.warnedPolice = true;
@@ -183,7 +206,6 @@ class Ride extends Phaser.Scene {
 
   // ---------- 交警检查点 ----------
   police() {
-    const s = GameState;
     this.policeDone = true;
     this.vy = 0;
     this.player.setVelocity(0);
@@ -193,9 +215,22 @@ class Ride extends Phaser.Scene {
       if (Math.abs(o.y - this.player.y) < 500) o.destroy();
     });
 
+    // v2：先二选一，停车受检 / 硬闯
+    const L = LINES.police;
+    UI.choice(this, L.askStop, [L.optStop, L.optRun], i => {
+      if (i === 0) this.policeStop(); else this.policeRun();
+    });
+  }
+
+  // 停车接受检查：和 v1 一样，没头盔 / 没牌照 / 载人各罚一笔，被罚耽误时间
+  policeStop() {
+    const s = GameState;
     const r = policeCheck(s.passenger);
     UI.updateHud(this);
     UI.alert(this, LINES.police.stop + '\n\n' + policeText(r), () => {
+      // 罚款可能把钱扣到 ≤ 0 → 隐藏结局
+      const key = hiddenEndingKey();
+      if (key) { UI.fadeTo(this, 'Ending', { key }); return; }
       // 被罚了且载着人：同学跑掉，报酬也没了
       if (!r.passed && s.passenger) {
         s.passenger = false;
@@ -204,6 +239,20 @@ class Ride extends Phaser.Scene {
       }
       this.invUntil = this.time.now + 1500;
     });
+  }
+
+  // 硬闯：被抓 → 派出所结局；闯过去不罚款、不耽误时间，载的同学也不跑（runs 在 tryRun 里 +1）
+  policeRun() {
+    if (!tryRun()) { UI.fadeTo(this, 'Ending', { key: 'police' }); return; }
+    UI.sfx(this, 'whistle');
+    UI.say(this, LINES.police.runOk, this.player);
+    // 过一会儿再说预兆（交警记住车了，下次更容易被抓）
+    this.time.delayedCall(2400, () => { if (!this.ending) UI.say(this, LINES.police.runOmen, this.player); });
+    // 路障本来就不挡玩家，变淡表示冲过去了；给一点保护时间
+    if (this.barrier) this.barrier.setAlpha(0.35);
+    this.invUntil = this.time.now + CONFIG.ride.runProtectMs;
+    this.tweens.add({ targets: this.player, alpha: 0.3, duration: 150, yoyo: true, repeat: 5,
+      onComplete: () => this.player.setAlpha(1) });
   }
 
   // ---------- 障碍 ----------
@@ -221,39 +270,54 @@ class Ride extends Phaser.Scene {
 
     if (type === 'delivery') {
       // 外卖车：从后面冲上来
-      o = this.npcs.create(lane, bottom + 60, 'npc_delivery');
-      o.setVelocityY(-CONFIG.ride.speed * 1.7);
+      o = this.addCar(type, 'npc_delivery', lane, bottom + 60, -CONFIG.ride.speed * 1.7);
+      if (!o) return;
       // 屏幕底部闪一个"！"，提醒后面有车冲上来
-      const warn = this.add.text(lane, 530, '！', UI.style(30, '#f97316'))
+      const warn = this.add.text(o.x, 530, '！', UI.style(30, '#f97316'))
         .setOrigin(0.5, 1).setScrollFactor(0).setDepth(900);
       this.tweens.add({ targets: warn, alpha: 0, duration: 900, onComplete: () => warn.destroy() });
     } else if (type === 'wrong') {
-      // 逆行车：一半概率就在玩家这条道上
-      const x = Math.random() < 0.5 ? this.nearestLane(p.x) : lane;
-      o = this.npcs.create(x, top - 80, 'npc_wrong');
+      // 逆行车：平时一半概率就在玩家这条道上，单行道路段概率更高
+      const same = this.inOneWay(p.y) ? CONFIG.ride.oneWay.sameLaneChance : CONFIG.ride.wrongSameLane;
+      o = this.addCar(type, 'npc_wrong', Math.random() < same ? this.nearestLane(p.x) : lane, top - 80, 140);
+      if (!o) return;
       o.setFlipY(true);
-      o.setVelocityY(140);
     } else if (type === 'walker') {
-      // 行人：突然横穿
+      // 行人：突然横穿（横着走，不占车道）
       const fromLeft = Math.random() < 0.5;
+      const vx = fromLeft ? 110 : -110;
       o = this.npcs.create(fromLeft ? this.ROAD_L - 20 : this.ROAD_R + 20,
         p.y - Phaser.Math.Between(300, 380), 'npc_walker');
-      o.setVelocityX(fromLeft ? 110 : -110);
+      o.setVelocityX(vx);
+      o.setData('type', type).setData('lane', null).setData('speed', vx);
     } else if (type === 'car') {
       // 汽车（校外）：体积大，同向慢慢开，挡路
-      o = this.npcs.create(lane, top - 120, 'npc_car');
-      o.setVelocityY(-90);
+      o = this.addCar(type, 'npc_car', lane, top - 120, -90);
     } else {
       // 校车：又大又慢，挡在前面
-      o = this.npcs.create(lane, top - 160, 'npc_bus');
-      o.setVelocityY(-50);
+      o = this.addCar('bus', 'npc_bus', lane, top - 160, -50);
     }
+    if (!o) return;
     o.body.setSize(o.width * 0.8, o.height * 0.85);
   }
 
-  // 按路线配置的权重随机选障碍类型
+  // 在车道上放一辆车：出生点 followGap 内同道已有车就换一条空道；四条都有就这次不生成（返回 null）
+  addCar(type, key, want, y, vy) {
+    const h = this.textures.getFrame(key).height;
+    const lanes = [want].concat(Phaser.Utils.Array.Shuffle(this.LANES.filter(x => x !== want)));
+    const x = lanes.find(x => this.laneFree(x, y, h, null));
+    if (x === undefined) return null;
+    const o = this.npcs.create(x, y, key);
+    o.setVelocityY(vy);
+    // type：障碍类型；lane：所在（或正要换去）的车道；speed：正常车速，排队 / 停下后恢复用
+    o.setData('type', type).setData('lane', x).setData('speed', vy);
+    return o;
+  }
+
+  // 按路线配置的权重随机选障碍类型；玩家在单行道路段时逆行权重 × wrongMul
   pickType() {
-    const w = this.route.npc;
+    const w = Object.assign({}, this.route.npc);
+    if (w.wrong && this.inOneWay(this.player.y)) w.wrong *= CONFIG.ride.oneWay.wrongMul;
     const total = Object.values(w).reduce((a, b) => a + b, 0);
     let r = Math.random() * total;
     for (const [k, v] of Object.entries(w)) {
@@ -264,6 +328,107 @@ class Ride extends Phaser.Scene {
 
   nearestLane(x) {
     return this.LANES.reduce((a, b) => Math.abs(b - x) < Math.abs(a - x) ? b : a);
+  }
+
+  // 这个 y 在不在今天的单行道路段里
+  inOneWay(y) {
+    return this.oneWay && y > this.oneWayTopY && y < this.oneWayBotY;
+  }
+
+  // ---------- 车道交通规则（车和车不开物理碰撞，靠这些规则避免穿模）----------
+  // 占着车道 lane 的车：本来在这条道，或正在换进 / 换出这条道
+  inLane(o, lane) {
+    return o.getData('lane') === lane || this.nearestLane(o.x) === lane;
+  }
+
+  // 两车前后之间的空隙（车头到车尾），负数就是已经叠上了
+  gapY(y, h, o) {
+    return Math.abs(o.y - y) - (h + o.displayHeight) / 2;
+  }
+
+  // 车道 lane 在 y 附近（前后 followGap 内）有没有空位；self 是自己，不算
+  laneFree(lane, y, h, self) {
+    const gap = CONFIG.ride.followGap;
+    return !this.npcs.getChildren().some(o => o !== self && o.active && o.getData('lane') !== null &&
+      this.inLane(o, lane) && this.gapY(y, h, o) < gap);
+  }
+
+  // 前方（按自己行驶方向）followGap 内最近的一辆车，没有返回 null
+  // 挡路的车：在自己（要去）的车道上，或者横向和自己叠着（换道途中）
+  carAhead(o) {
+    const dir = Math.sign(o.getData('speed'));   // -1 往上开，1 往下开（逆行）
+    const lane = o.getData('lane');
+    let best = null, bestGap = CONFIG.ride.followGap;
+    this.npcs.getChildren().forEach(b => {
+      if (b === o || !b.active || b.getData('lane') === null) return;
+      if (!this.inLane(b, lane) && Math.abs(b.x - o.x) >= (b.displayWidth + o.displayWidth) / 2) return;
+      if ((b.y - o.y) * dir <= 0) return;   // 在身后
+      const g = this.gapY(o.y, o.displayHeight, b);
+      if (g < bestGap) { best = b; bestGap = g; }
+    });
+    return best;
+  }
+
+  // 往左右相邻的空道换，换成功返回 true
+  changeLane(o) {
+    const i = this.LANES.indexOf(o.getData('lane'));
+    const side = Phaser.Utils.Array.Shuffle([i - 1, i + 1])
+      .map(j => this.LANES[j])
+      .find(x => x !== undefined && this.laneFree(x, o.y, o.displayHeight, o));
+    if (side === undefined) return false;
+    o.setData('lane', side);   // x 在 trafficStep 里慢慢挪过去
+    return true;
+  }
+
+  // 每帧：排队、变道、躲让、行人等车
+  trafficStep(delta) {
+    const shift = CONFIG.ride.laneChangeSpeed * delta / 1000;   // 换道横向速度，够快才不会在换道途中蹭到前车
+    this.npcs.getChildren().forEach(o => {
+      if (!o.active) return;
+      const type = o.getData('type');
+      const speed = o.getData('speed');
+      if (type === 'walker') { this.walkerStep(o, speed); return; }
+
+      // 正在换道：横着挪向目标车道
+      const lane = o.getData('lane');
+      const changing = Math.abs(lane - o.x) > 0.5;
+      if (changing) o.x = Math.abs(lane - o.x) <= shift ? lane : o.x + Math.sign(lane - o.x) * shift;
+
+      const front = this.carAhead(o);
+      if (!front) { o.setVelocityY(speed); return; }   // 前面空了，恢复正常车速
+      // 前车的速度夹在 [自己的速度, 0] 之间：同向慢车 → 跟着排队；迎面来车 / 停着的车 → 停下
+      const follow = speed < 0 ? Phaser.Math.Clamp(front.body.velocity.y, speed, 0)
+                               : Phaser.Math.Clamp(front.body.velocity.y, 0, speed);
+      if (changing) {
+        // 换道途中前面有车：先跟着，换完再说
+        o.setVelocityY(follow);
+      } else if (type === 'delivery') {
+        // 外卖车：换到旁边空道超车（可能并进玩家的道），换不了就先跟着
+        if (!this.changeLane(o)) o.setVelocityY(follow);
+      } else if (type === 'wrong') {
+        // 逆行车：迎面有车就往旁边空道躲，躲不开就停下
+        if (!this.changeLane(o)) o.setVelocityY(0);
+      } else {
+        // 汽车 / 校车：减速排队
+        o.setVelocityY(follow);
+      }
+    });
+  }
+
+  // 行人：再走一步就进某辆车的道、而那辆车在 followGap 内驶近（或正挡着）→ 停一下，车过去再走
+  walkerStep(o, speed) {
+    const nextX = o.x + Math.sign(speed) * 40;   // 往前看一步
+    let wait = false, inPath = false;
+    this.npcs.getChildren().forEach(c => {
+      if (!c.active || c.getData('lane') === null) return;
+      const g = this.gapY(o.y, o.displayHeight, c);
+      const coming = c.body.velocity.y * (o.y - c.y) > 0;   // 车正朝行人这一行开过来
+      if (!(g < 0 || (coming && g < CONFIG.ride.followGap))) return;
+      const reach = (c.displayWidth + o.displayWidth) / 2;
+      if (Math.abs(o.x - c.x) < reach) inPath = true;         // 已经站在这辆车的道上：赶紧走完
+      else if (Math.abs(nextX - c.x) < reach) wait = true;    // 再走一步就进它的道：先等
+    });
+    o.setVelocityX(wait && !inPath ? 0 : speed);
   }
 
   cleanupNpcs() {

@@ -1,5 +1,6 @@
 // ===== 场景1 FindCar：宿舍楼下找车（B 负责）=====
 // 规则见 项目说明.md 第 8 节。没有失败条件，时钟一直在走。
+// 多米诺：挪开邻车时可能带倒同一排（往远离自己车的方向），全部扶起来才能解锁。
 class FindCar extends Phaser.Scene {
   constructor() { super('FindCar'); }
 
@@ -37,7 +38,7 @@ class FindCar extends Phaser.Scene {
         const mine = (r === myRow && c === myCol);
         // 自己的车在找到前和别人的车长得一样
         const b = this.bikes.create(left + c * COL_GAP, TOP + r * ROW_GAP, 'bike_other');
-        b.setData({ mine, row: r, col: c, moved: false });
+        b.setData({ mine, row: r, col: c, moved: false, fallen: false, x0: b.x });   // x0：扶起来时复原
         b.setTint(Phaser.Display.Color.HSVToRGB(Math.random(), 0.15, 1).color); // 稍微区分一下颜色
         if (mine) this.myBike = b;
         this.grid[r][c] = b;
@@ -96,6 +97,14 @@ class FindCar extends Phaser.Scene {
       this.nextBeep = time + Phaser.Math.Clamp(dist * 1.6, 140, 1400);
     }
 
+    // ---- 旁边有倒着的车：优先扶起来 ----
+    const down = this.nearestFallen(64);
+    if (down) {
+      UI.hint(this, LINES.park.liftHint);
+      if (f) this.liftBike(down);
+      return;
+    }
+
     // ---- 找最近的车 ----
     const target = this.nearestBike(64);
     if (!target) { UI.hint(this, null); return; }
@@ -109,11 +118,11 @@ class FindCar extends Phaser.Scene {
     if (f) this.interact(target, mine, isNeighbor);
   }
 
-  // 找离主角最近、在 range 以内的车
+  // 找离主角最近、在 range 以内的车（挪开的、倒着的不算）
   nearestBike(range) {
     let best = null, bestD = range;
     this.bikes.getChildren().forEach(b => {
-      if (b.getData('moved')) return;
+      if (b.getData('moved') || b.getData('fallen')) return;
       const dd = Phaser.Math.Distance.BetweenPoints(this.player, b);
       if (dd < bestD) { bestD = dd; best = b; }
     });
@@ -129,6 +138,7 @@ class FindCar extends Phaser.Scene {
         this.tweens.add({ targets: bike, scale: 1.2, duration: 120, yoyo: true });
       }
       if (this.movedCount === 0) { UI.say(this, LINES.findCar.blocked, this.player); return; }
+      if (this.hasFallen()) { UI.say(this, LINES.park.liftFirst, this.player); return; }   // 倒着的车没扶完，不让解锁
       this.unlock();
       return;
     }
@@ -144,7 +154,65 @@ class FindCar extends Phaser.Scene {
     GameState.clock += CONFIG.findCar.moveCarMinutes;
     const dy = this.player.y > bike.y ? 34 : -34;
     this.tweens.add({ targets: bike, y: bike.y + dy, angle: Phaser.Math.Between(-35, 35), duration: 350 });
-    UI.say(this, LINES.findCar.moved, this.player);
+    if (!this.domino(bike)) UI.say(this, LINES.findCar.moved, this.player);
+  }
+
+  // ---- 多米诺：挪车时可能带倒同一排，返回有没有倒 ----
+  domino(bike) {
+    const C = CONFIG.findCar;
+    const FALL_ANGLE = 80, FALL_SHIFT = 8;   // 倒下的角度、顺带往外滑的像素（纯画面）
+    if (Math.random() >= C.dominoChance) return false;
+
+    // 往远离自己车的方向，从被挪那辆的另一侧邻车开始；遇到挪开的 / 倒着的 / 排尾就停
+    const dir = bike.getData('col') < this.myBike.getData('col') ? -1 : 1;
+    const row = this.grid[bike.getData('row')];
+    const chain = [];
+    for (let c = bike.getData('col') + dir; c >= 0 && c < row.length && chain.length < C.dominoMax; c += dir) {
+      const b = row[c];
+      if (b.getData('moved') || b.getData('fallen')) break;
+      chain.push(b);
+    }
+    if (!chain.length) return false;   // 被挪的车在排尾，没东西可倒
+
+    // 先全部标记为倒下，再一辆接一辆播动画（节奏和车棚一致）
+    chain.forEach((b, k) => {
+      b.setData('fallen', true);
+      this.time.delayedCall(k * CONFIG.findCar.dominoDelayMs, () => {
+        if (!b.getData('fallen')) return;   // 还没倒就被扶起来了
+        this.tweens.add({ targets: b, angle: dir * FALL_ANGLE, x: b.getData('x0') + dir * FALL_SHIFT,
+          duration: 150, ease: 'Quad.In' });
+      });
+    });
+    UI.sfx(this, 'fall');
+    this.cameras.main.shake(120, 0.005);
+    UI.say(this, LINES.park.domino, this.player);
+    return true;
+  }
+
+  // 还有没有倒着的车
+  hasFallen() {
+    return this.bikes.getChildren().some(b => b.getData('fallen'));
+  }
+
+  // 距离 r 以内最近的一辆倒着的车，没有返回 null
+  nearestFallen(r) {
+    let best = null, bestD = r;
+    this.bikes.getChildren().forEach(b => {
+      if (!b.getData('fallen')) return;
+      const dist = Phaser.Math.Distance.BetweenPoints(this.player, b);
+      if (dist < bestD) { best = b; bestD = dist; }
+    });
+    return best;
+  }
+
+  // 扶起一辆：摆正、回到原位，花一点时间
+  liftBike(b) {
+    b.setData('fallen', false);
+    this.tweens.killTweensOf(b);   // 正在倒的动画停掉
+    this.tweens.add({ targets: b, angle: 0, x: b.getData('x0'), duration: 200 });
+    GameState.clock += CONFIG.findCar.liftMinutes;
+    UI.sfx(this, 'park');
+    UI.say(this, this.hasFallen() ? LINES.park.lift : LINES.park.liftedAll, this.player);
   }
 
   unlock() {

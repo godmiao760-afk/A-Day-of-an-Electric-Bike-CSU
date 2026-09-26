@@ -23,7 +23,14 @@ const ASSETS = {
     rider_carry:  { w: 32, h: 64,  color: 0x1d4ed8, file: false }, // 主角骑车载人
     npc_car:      { w: 56, h: 100, color: 0x64748b, file: false }, // 汽车（校外）
     police:       { w: 32, h: 32,  color: 0x1e3a8a, file: false }, // 交警
-    barrier:      { w: 400, h: 16, color: 0xdc2626, file: false }  // 检查点路障
+    barrier:      { w: 400, h: 16, color: 0xdc2626, file: false }, // 检查点路障
+    // v2 结局图（Ending 场景，320×240）
+    end_perfect:  { w: 320, h: 240, color: 0x16a34a, file: false }, // 完美：欢呼
+    end_pass:     { w: 320, h: 240, color: 0x2563eb, file: false }, // 合格
+    end_fail:     { w: 320, h: 240, color: 0x6b7280, file: false }, // 不合格：垂头丧气
+    end_police:   { w: 320, h: 240, color: 0x1e3a8a, file: false }, // 派出所
+    end_faint:    { w: 320, h: 240, color: 0x7c2d12, file: false }, // 昏倒
+    end_broke:    { w: 320, h: 240, color: 0x991b1b, file: false }  // 跪地嚎啕大哭
   },
   // 音效放进 assets/sfx/，mp3 格式。有了就改成 true。
   sounds: {

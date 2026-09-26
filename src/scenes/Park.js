@@ -171,8 +171,14 @@ class Park extends Phaser.Scene {
         // 被贴条：罚款可以扣成负数，不算进 spent（和 policeCheck 一致）
         addFine(L.ticketReason, P.ticketFine);
         UI.updateHud(this);
+        // 弹窗关掉时：罚到没钱 → 隐藏结局，否则照常去上课
+        const afterTicket = () => {
+          const k = hiddenEndingKey();
+          if (k) UI.fadeTo(this, 'Ending', { key: k });
+          else toClass();
+        };
         this.time.delayedCall(800, () =>
-          UI.alert(this, L.ticketHead + '\n' + L.ticketReason + '　罚 ¥' + P.ticketFine, toClass));
+          UI.alert(this, L.ticketHead + '\n' + L.ticketReason + '　罚 ¥' + P.ticketFine, afterTicket));
       } else {
         this.time.delayedCall(1200, () => UI.say(this, L.noTicket, this.player));
         this.time.delayedCall(2600, toClass);
