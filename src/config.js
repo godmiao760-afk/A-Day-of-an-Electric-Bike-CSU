@@ -44,7 +44,21 @@ const CONFIG = {
   },
 
   findCar: {
-    rows: 5, cols: 10,       // 车阵行列数
+    rows: 3, cols: 7,        // 宿舍背景中的三排车位
+    world: { width: 960, height: 640, left: 240, right: 855, top: 48, bottom: 620 },
+    layout: { left: 362, top: 125, colGap: 60, rowGap: 165 },
+    spawn: { x: 285, y: 560 }, // 宿舍门外的步行通道
+    bike: { width: 34, height: 78, bodyWidth: 28, bodyHeight: 65 },
+    person: { width: 42, height: 64, bodyWidth: 22, bodyHeight: 16 },
+    rider: { width: 36, height: 84 },
+    walkFrameRate: 7,
+    interactionRange: 40,   // 人物脚底到车辆碰撞框边缘的距离
+    moveDistance: 40,
+    moveAngle: 25,
+    moveDuration: 350,
+    mountDuration: 1000,
+    signalStep: 120,
+    beepDistanceFactor: 1.6, beepMin: 140, beepMax: 1400,
     walkSpeed: 160,          // 步行速度（像素/秒）
     moveCarMinutes: 1        // 每挪开一辆车额外花的游戏分钟
   },

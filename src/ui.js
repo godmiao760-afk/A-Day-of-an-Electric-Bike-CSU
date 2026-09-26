@@ -106,7 +106,9 @@ const UI = {
 
     if (target) {
       const follow = () => {
-        if (b.active && target.active) b.setPosition(target.x, target.y - target.displayHeight / 2 - 8);
+        // 按精灵原点计算头顶，兼容脚底为原点的步行人物。
+        if (b.active && target.active) b.setPosition(target.x,
+          target.y - target.displayHeight * (target.originY ?? 0.5) - 8);
       };
       follow();
       scene.events.on('postupdate', follow);

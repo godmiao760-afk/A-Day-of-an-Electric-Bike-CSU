@@ -1,15 +1,50 @@
 // ===== 素材清单（C 负责）=====
 // 把图片放进 assets/img/，文件名 = key，例如 assets/img/bike.png
 // 然后把 file 那一栏改成 true。没有图片的保持 false，游戏会自动用色块占位。
+// 子目录用 path 指定相对路径；w/h 是占位尺寸，crop 可去除透明留白。
 // 所有图片默认朝上（车头朝屏幕上方）。
 const ASSETS = {
   images: {
     //  key            宽   高   占位色      有图片了吗
-    player:       { w: 32, h: 32,  color: 0x3b82f6, file: false }, // 主角（步行）
-    rider:        { w: 32, h: 56,  color: 0x2563eb, file: false }, // 主角骑车
+    dorm:         { w: 1536, h: 1024, color: 0x365a32, file: true,
+      path: 'assets/img/background/dorm.png' }, // 宿舍车棚背景
+    player:       { w: 32, h: 32,  color: 0x3b82f6, file: false }, // 其他场景的步行占位图
+    // 动画占位帧与原图保持同尺寸，缺少某一帧时也不会跳变缩放。
+    player_walk_right_1: { w: 342, h: 512, color: 0x3b82f6, file: true,
+      path: 'assets/img/character/player_walk_frames/walk_right_01.png' },
+    player_walk_right_2: { w: 342, h: 512, color: 0x3b82f6, file: true,
+      path: 'assets/img/character/player_walk_frames/walk_right_02.png' },
+    player_walk_right_3: { w: 342, h: 512, color: 0x3b82f6, file: true,
+      path: 'assets/img/character/player_walk_frames/walk_right_03.png' },
+    player_walk_left_1: { w: 342, h: 512, color: 0x3b82f6, file: true,
+      path: 'assets/img/character/player_walk_frames/walk_left_01.png' },
+    player_walk_left_2: { w: 342, h: 512, color: 0x3b82f6, file: true,
+      path: 'assets/img/character/player_walk_frames/walk_left_02.png' },
+    player_walk_left_3: { w: 342, h: 512, color: 0x3b82f6, file: true,
+      path: 'assets/img/character/player_walk_frames/walk_left_03.png' },
+    dorm_rider:   { w: 36, h: 84, color: 0x2563eb, file: true,
+      path: 'assets/img/character/riding/driving.png',
+      crop: { x: 321, y: 47, w: 373, h: 877 } }, // 找车场景上车表现
+    rider:        { w: 32, h: 56, color: 0x2563eb, file: false },
     pusher:       { w: 40, h: 56,  color: 0x93c5fd, file: false }, // 主角推车
-    bike:         { w: 24, h: 48,  color: 0xfacc15, file: false }, // 自己的车（停着）
-    bike_other:   { w: 24, h: 48,  color: 0x9ca3af, file: false }, // 别人的车
+    bike:         { w: 24, h: 48, color: 0xfacc15, file: false },
+    bike_other:   { w: 24, h: 48, color: 0x9ca3af, file: false },
+    dorm_bike:    { w: 34, h: 78, color: 0xfacc15, file: true,
+      path: 'assets/img/vehical/protagonist.png' }, // 主角的车
+    dorm_bike_1: { w: 34, h: 78, color: 0x9ca3af, file: true,
+      path: 'assets/img/vehical/1.png' },
+    dorm_bike_2: { w: 34, h: 78, color: 0x9ca3af, file: true,
+      path: 'assets/img/vehical/2.png' },
+    dorm_bike_3: { w: 34, h: 78, color: 0x9ca3af, file: true,
+      path: 'assets/img/vehical/3.png' },
+    dorm_bike_4: { w: 34, h: 78, color: 0x9ca3af, file: true,
+      path: 'assets/img/vehical/4.png' },
+    dorm_bike_5: { w: 34, h: 78, color: 0x9ca3af, file: true,
+      path: 'assets/img/vehical/5.png' },
+    dorm_bike_6: { w: 34, h: 78, color: 0x9ca3af, file: true,
+      path: 'assets/img/vehical/6.png' },
+    dorm_bike_7: { w: 34, h: 78, color: 0x9ca3af, file: true,
+      path: 'assets/img/vehical/7.png' },
     npc_delivery: { w: 32, h: 56,  color: 0xf97316, file: false }, // 外卖车
     npc_wrong:    { w: 32, h: 56,  color: 0xef4444, file: false }, // 逆行车
     npc_walker:   { w: 28, h: 28,  color: 0xa855f7, file: false }, // 行人

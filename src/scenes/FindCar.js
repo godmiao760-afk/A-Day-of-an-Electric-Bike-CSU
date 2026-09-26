@@ -8,23 +8,11 @@ class FindCar extends Phaser.Scene {
     const C = CONFIG.findCar;
     GameState.clock = CONFIG.startClock;
 
-    // ---- 布局参数 ----
-    const COL_GAP = 50;     // 车与车左右间距
-    const ROW_GAP = 104;    // 行距（中间留出走道）
-    const TOP = 190;        // 第一排车的 y
-    const WORLD_W = 960;
-    const WORLD_H = TOP + (C.rows - 1) * ROW_GAP + 170;
-    const left = WORLD_W / 2 - (C.cols - 1) * COL_GAP / 2;
-
-    this.physics.world.setBounds(0, 90, WORLD_W, WORLD_H - 90);
-    this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
-
-    // ---- 地面和宿舍楼 ----
-    this.add.tileSprite(0, 0, WORLD_W, WORLD_H, 'road').setOrigin(0);
-    this.add.tileSprite(0, 0, WORLD_W, 90, 'building').setOrigin(0);
-    this.add.text(WORLD_W / 2, 45, '宿 舍 楼', UI.style(30, '#fecaca')).setOrigin(0.5);
-    this.add.tileSprite(0, 90, 40, WORLD_H - 90, 'grass').setOrigin(0);
-    this.add.tileSprite(WORLD_W - 40, 90, 40, WORLD_H - 90, 'grass').setOrigin(0);
+    // 背景按原始比例缩放；活动范围避开左侧宿舍楼和外围围栏。
+    const W = C.world;
+    this.physics.world.setBounds(W.left, W.top, W.right - W.left, W.bottom - W.top);
+    this.cameras.main.setBounds(0, 0, W.width, W.height);
+    this.add.image(0, 0, 'dorm').setOrigin(0).setDisplaySize(W.width, W.height);
 
     // ---- 车阵 ----
     this.bikes = this.physics.add.staticGroup();
@@ -35,10 +23,14 @@ class FindCar extends Phaser.Scene {
       this.grid[r] = [];
       for (let c = 0; c < C.cols; c++) {
         const mine = (r === myRow && c === myCol);
-        // 自己的车在找到前和别人的车长得一样
-        const b = this.bikes.create(left + c * COL_GAP, TOP + r * ROW_GAP, 'bike_other');
+        const texture = mine ? 'dorm_bike' : 'dorm_bike_' + ((r * C.cols + c) % 7 + 1);
+        const b = this.bikes.create(C.layout.left + c * C.layout.colGap,
+          C.layout.top + r * C.layout.rowGap, texture);
+        b.setDisplaySize(C.bike.width, C.bike.height).refreshBody();
+        // 静态碰撞框用世界像素设置，不能沿用原 PNG 的 85×193。
+        b.body.setSize(C.bike.bodyWidth, C.bike.bodyHeight);
+        b.setDepth(b.y + C.bike.height / 2);
         b.setData({ mine, row: r, col: c, moved: false });
-        b.setTint(Phaser.Display.Color.HSVToRGB(Math.random(), 0.15, 1).color); // 稍微区分一下颜色
         if (mine) this.myBike = b;
         this.grid[r][c] = b;
       }
@@ -46,11 +38,22 @@ class FindCar extends Phaser.Scene {
     this.neighbors = [this.grid[myRow][myCol - 1], this.grid[myRow][myCol + 1]];
     this.discovered = false;  // 是否已经确认这是自己的车
     this.movedCount = 0;
+    this.bikeMarker = this.add.rectangle(this.myBike.x, this.myBike.y,
+      C.bike.width + 8, C.bike.height + 8).setStrokeStyle(2, 0xfde047)
+      .setDepth(this.myBike.depth + 1).setVisible(false);
 
     // ---- 主角 ----
-    this.player = this.physics.add.sprite(WORLD_W / 2, WORLD_H - 60, 'player');
+    this.createWalkAnimations();
+    this.walkFacing = 'right';
+    this.rider = null;
+    this.player = this.physics.add.sprite(C.spawn.x, C.spawn.y, 'player_walk_right_2');
+    this.player.setOrigin(0.5, 1).setDisplaySize(C.person.width, C.person.height);
     this.player.setCollideWorldBounds(true);
-    this.player.body.setSize(26, 26);
+    // 人物坐标在脚底；动态碰撞框必须换算回纹理像素。
+    const bw = C.person.bodyWidth / this.player.scaleX;
+    const bh = C.person.bodyHeight / this.player.scaleY;
+    this.player.body.setSize(bw, bh).setOffset((this.player.width - bw) / 2, this.player.height - bh);
+    this.player.setDepth(this.player.y);
     this.physics.add.collider(this.player, this.bikes);
     this.cameras.main.centerOn(this.player.x, this.player.y);
     this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
@@ -63,6 +66,9 @@ class FindCar extends Phaser.Scene {
     })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
     this.nextBeep = 0;
     this.done = false;
+    this.add.text(12, 510, LINES.findCar.controls, UI.style(14, '#ffffff', {
+      backgroundColor: 'rgba(0,0,0,0.65)', padding: { x: 8, y: 3 }
+    })).setScrollFactor(0).setDepth(1000);
 
     UI.say(this, isHungry() ? LINES.hungry : LINES.findCar.start, this.player);
     // 只提示背包在哪，不提醒要戴头盔
@@ -72,49 +78,79 @@ class FindCar extends Phaser.Scene {
   }
 
   update(time, delta) {
+    const f = UI.pressedF(this);
     UI.tickClock(this, delta);
     UI.updateHud(this);
-    const f = UI.pressedF(this);
     if (UI.pressedE(this) && !this.done) {
       this.player.setVelocity(0);
       if (this.bpTip) { this.bpTip.destroy(); this.bpTip = null; }
       UI.backpack(this);
     }
-    if (UI.blocked(this) || this.done) { this.player.setVelocity(0); return; }
+    if (UI.blocked(this) || this.done) {
+      this.player.setVelocity(0);
+      this.updateWalkAnimation({ x: 0, y: 0 });
+      return;
+    }
 
     // ---- 移动（饿了走得慢）----
     const d = UI.dir(this);
     const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(CONFIG.findCar.walkSpeed * speedMul());
     this.player.setVelocity(v.x, v.y);
+    this.updateWalkAnimation(d);
+    this.player.setDepth(this.player.y);
 
     // ---- 找车提示：越近滴得越快，信号格越多 ----
     const dist = Phaser.Math.Distance.BetweenPoints(this.player, this.myBike);
-    const level = Phaser.Math.Clamp(5 - Math.floor(dist / 120), 1, 5);
-    this.signal.setText('钥匙信号 ' + '▮'.repeat(level) + '▯'.repeat(5 - level));
+    const C = CONFIG.findCar;
+    const level = Phaser.Math.Clamp(5 - Math.floor(dist / C.signalStep), 1, 5);
+    this.signal.setText(LINES.findCar.signal + '▮'.repeat(level) + '▯'.repeat(5 - level));
     if (time > this.nextBeep) {
       UI.sfx(this, 'beep');
-      this.nextBeep = time + Phaser.Math.Clamp(dist * 1.6, 140, 1400);
+      this.nextBeep = time + Phaser.Math.Clamp(dist * C.beepDistanceFactor, C.beepMin, C.beepMax);
     }
 
     // ---- 找最近的车 ----
-    const target = this.nearestBike(64);
+    const target = this.nearestBike(C.interactionRange);
     if (!target) { UI.hint(this, null); return; }
 
     const mine = target.getData('mine');
     const isNeighbor = this.neighbors.includes(target) && !target.getData('moved');
-    if (mine && this.discovered && this.movedCount > 0) UI.hint(this, '按 F 解锁');
-    else if (isNeighbor && this.discovered) UI.hint(this, '按 F 挪开这辆车');
-    else UI.hint(this, '按 F 查看');
+    if (mine && this.discovered && this.movedCount > 0) UI.hint(this, LINES.findCar.unlockHint);
+    else if (isNeighbor && this.discovered) UI.hint(this, LINES.findCar.moveHint);
+    else UI.hint(this, LINES.findCar.inspectHint);
 
     if (f) this.interact(target, mine, isNeighbor);
   }
 
-  // 找离主角最近、在 range 以内的车
+  createWalkAnimations() {
+    for (const facing of ['left', 'right']) {
+      const key = 'dorm_walk_' + facing;
+      if (this.anims.exists(key)) continue; // 第二天沿用已有动画
+      this.anims.create({ key,
+        frames: [1, 2, 3, 2].map(n => ({ key: 'player_walk_' + facing + '_' + n })),
+        frameRate: CONFIG.findCar.walkFrameRate, repeat: -1
+      });
+    }
+  }
+
+  updateWalkAnimation(d) {
+    if (d.x) this.walkFacing = d.x < 0 ? 'left' : 'right';
+    if (d.x || d.y) this.player.anims.play('dorm_walk_' + this.walkFacing, true);
+    else {
+      this.player.anims.stop();
+      this.player.setTexture('player_walk_' + this.walkFacing + '_2');
+    }
+  }
+
+  // 以人物脚底和车身边缘计算距离，较长的车图也能从上下方交互。
   nearestBike(range) {
     let best = null, bestD = range;
     this.bikes.getChildren().forEach(b => {
       if (b.getData('moved')) return;
-      const dd = Phaser.Math.Distance.BetweenPoints(this.player, b);
+      const p = this.player.body.center, body = b.body;
+      const dx = Math.max(body.left - p.x, 0, p.x - body.right);
+      const dy = Math.max(body.top - p.y, 0, p.y - body.bottom);
+      const dd = Math.hypot(dx, dy);
       if (dd < bestD) { bestD = dd; best = b; }
     });
     return best;
@@ -123,10 +159,9 @@ class FindCar extends Phaser.Scene {
   interact(bike, mine, isNeighbor) {
     if (mine) {
       if (!this.discovered) {
-        // 第一次认出自己的车：换成黄色贴图
+        // 确认车辆后亮起边框，保持 protagonist 原图的尺寸和颜色。
         this.discovered = true;
-        bike.setTexture('bike').clearTint();
-        this.tweens.add({ targets: bike, scale: 1.2, duration: 120, yoyo: true });
+        this.bikeMarker.setVisible(true);
       }
       if (this.movedCount === 0) { UI.say(this, LINES.findCar.blocked, this.player); return; }
       this.unlock();
@@ -138,21 +173,35 @@ class FindCar extends Phaser.Scene {
 
   // 把夹住自己车的那辆拖进走道
   moveAway(bike) {
+    if (bike.getData('moved')) return;
+    const C = CONFIG.findCar;
     bike.setData('moved', true);
     this.physics.world.disable(bike);   // 不再挡路
     this.movedCount++;
     GameState.clock += CONFIG.findCar.moveCarMinutes;
-    const dy = this.player.y > bike.y ? 34 : -34;
-    this.tweens.add({ targets: bike, y: bike.y + dy, angle: Phaser.Math.Between(-35, 35), duration: 350 });
+    const dy = this.player.y > bike.y ? C.moveDistance : -C.moveDistance;
+    this.tweens.add({ targets: bike, y: bike.y + dy,
+      angle: Phaser.Math.Between(-C.moveAngle, C.moveAngle), duration: C.moveDuration,
+      onUpdate: () => bike.setDepth(bike.y + C.bike.height / 2)
+    });
     UI.say(this, LINES.findCar.moved, this.player);
   }
 
   unlock() {
+    if (this.done) return;
     this.done = true;
+    const C = CONFIG.findCar;
+    this.player.setVelocity(0).disableBody(true, true);
+    this.myBike.disableBody(true, true);
+    this.bikeMarker.setVisible(false);
+    const frame = this.textures.get('dorm_rider').has('trimmed') ? 'trimmed' : undefined;
+    this.rider = this.add.image(this.myBike.x, this.myBike.y, 'dorm_rider', frame)
+      .setDisplaySize(C.rider.width, C.rider.height).setDepth(this.myBike.depth);
+    this.cameras.main.startFollow(this.rider, true, 0.15, 0.15);
     UI.hint(this, null);
     GameState.findCarMinutes = Math.round(GameState.clock - CONFIG.startClock);
     UI.sfx(this, 'park');
-    UI.say(this, LINES.findCar.found, this.player);
-    this.time.delayedCall(1000, () => UI.fadeTo(this, 'Node', { kind: 'gate' }));
+    UI.say(this, LINES.findCar.found, this.rider);
+    this.time.delayedCall(C.mountDuration, () => UI.fadeTo(this, 'Node', { kind: 'gate' }));
   }
 }

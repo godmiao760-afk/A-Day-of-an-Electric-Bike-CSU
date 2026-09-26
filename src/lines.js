@@ -13,7 +13,12 @@ const LINES = {
     blocked: "被夹在中间了，得先把旁边的车挪开。",
     moved:   "嘿——咻！挪开了。",
     found:   "终于找到你了！",
-    backpackTip: "按 E 打开背包"
+    backpackTip: "按 E 打开背包",
+    controls: "WASD / 方向键走路 · 靠近车辆按 F",
+    signal: "钥匙信号 ",
+    inspectHint: "按 F 查看",
+    moveHint: "按 F 挪开这辆车",
+    unlockHint: "按 F 解锁"
   },
   backpack: {
     title:     "背包",

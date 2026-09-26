@@ -5,7 +5,7 @@ class Boot extends Phaser.Scene {
   preload() {
     // 只加载 ASSETS 里标记 file: true 的素材
     for (const [key, a] of Object.entries(ASSETS.images)) {
-      if (a.file) this.load.image(key, 'assets/img/' + key + '.png');
+      if (a.file) this.load.image(key, a.path || ('assets/img/' + key + '.png'));
     }
     for (const [key, has] of Object.entries(ASSETS.sounds)) {
       if (has) this.load.audio(key, 'assets/sfx/' + key + '.mp3');
@@ -16,7 +16,14 @@ class Boot extends Phaser.Scene {
   create() {
     // 缺失的贴图生成色块
     for (const [key, a] of Object.entries(ASSETS.images)) {
-      if (this.textures.exists(key)) continue;
+      if (this.textures.exists(key)) {
+        // 只为真实图片裁出显示帧；缺图时仍使用完整占位图。
+        if (a.crop) {
+          const c = a.crop;
+          this.textures.get(key).add('trimmed', 0, c.x, c.y, c.w, c.h);
+        }
+        continue;
+      }
       const g = this.add.graphics();
       if (a.outline) {
         g.lineStyle(3, a.color, 0.9).strokeRect(2, 2, a.w - 4, a.h - 4);
