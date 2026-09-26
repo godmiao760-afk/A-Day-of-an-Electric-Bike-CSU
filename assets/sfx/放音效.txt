@@ -1,0 +1,2 @@
+放音效：mp3 格式，文件名 = key：beep、hit、fall、park、plug
+然后在 src/assets.js 的 sounds 里把对应的改成 true。

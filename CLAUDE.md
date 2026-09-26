@@ -1,0 +1,137 @@
+# 项目说明（CLAUDE.md）：《小电驴的一天》
+
+> 全队和 AI 共用的唯一依据。**让 AI 写代码前，先让它读这份文件。**
+> 设计有变动，先改这里，再改代码。Claude Code 会自动读取本文件。
+
+## 1. 一句话介绍
+
+以一辆电动车的视角，体验中南大学学生骑电动车的一天：早上找车 → 骑车上课 → 教学楼停车 → 晚上找桩充电。俯视角 2D，键盘操作。今晚充了多少电，就是明早出门时的电量。
+
+## 2. 技术约定（AI 必须遵守）
+
+- 引擎 **Phaser 3.90.0**，CDN 引入（见 index.html）。**只用 Phaser 3 写法**，不要用 Phaser 2/CE 或 Phaser 4 的 API。
+- 纯 JavaScript。不用 TypeScript、npm、打包工具、第三方库。
+- 普通 `<script>` 按顺序加载，**不用 import / export**。
+- 全局对象：`CONFIG`、`LINES`、`ASSETS`、`GameState`、`UI`、各场景类、`newGame()`、`nextDay()`。
+- 画面 960×540，Arcade 物理，无重力（俯视角）。
+- 本地运行：VS Code + Live Server 插件，右键 index.html → Open with Live Server。
+- 没有美术时自动用色块占位（Boot 场景生成）。
+
+## 3. 操作
+
+WASD 移动；F 交互（查看、挪车、解锁、停车、扫码、扶车、确认）；弹窗里 A/D 切换、F 确认，也可鼠标点。
+
+## 4. 文件与负责人
+
+```
+index.html              A   加载顺序：config → lines → assets → state → ui → scenes → main
+src/config.js           D   数值表 CONFIG（只改数字）
+src/lines.js            D   文案 LINES（只改文字）
+src/assets.js           C   素材清单 ASSETS（放了图片就把 file 改成 true）
+src/state.js            A   GameState、newGame()、nextDay()
+src/ui.js               A   公用工具（见第 7 节）
+src/main.js             A   创建游戏；DEBUG_START 调试开关
+src/scenes/Boot.js      A   加载素材、生成色块
+src/scenes/Intro.js     A   "第 N 天"字幕
+src/scenes/FindCar.js   B   场景1 找车
+src/scenes/Ride.js      A   场景2 骑行
+src/scenes/Park.js      B   场景3/3′ 停车
+src/scenes/Class.js     A   上课过场
+src/scenes/Charge.js    B   场景4 充电
+src/scenes/Result.js    A   结算
+assets/img/  assets/sfx/    C
+```
+
+**调试：** main.js 里 `DEBUG_START = 'Ride'`（或 'Park' / 'Charge' / 'Result'）直接从该场景开始；测推车用 `DEBUG_START = 'Park'` + `DEBUG_DATA = { pushing: true }`。**演示前改回 null。** 物理碰撞框：main.js 里 `debug: true`。
+
+## 5. 全局状态 GameState
+
+```js
+day            // 第几天
+clock          // 游戏内分钟数，可带小数。455 = 7:35
+clockPaused    // 为 true 时时钟暂停
+battery        // 电量 0–100，唯一跨天保留的数据
+hp             // 血量，只在 Ride 使用
+late           // 是否迟到
+hits, falls    // 被撞 / 摔倒次数（Ride 写）
+findCarMinutes // 找车用时（FindCar 写）
+arriveClock    // 停好车的时刻（Park 写）
+chargeResult   // 'none' | 'watch' | 'full' | 'unplugged'（Charge 写）
+chargeGain     // 今晚充进去多少电（Charge 写）
+```
+字段名和含义不许改；新增字段先在群里说，再改这里。
+
+## 6. 时钟
+
+- 现实 1 秒 = 游戏 `CONFIG.timeScale` 秒。统一用 `UI.tickClock(this, delta)`，不要自己写。
+- 走钟的场景：FindCar、Ride、Park、Charge。弹窗打开时自动暂停，独白气泡不暂停。
+
+## 7. 公用工具 UI（ui.js）
+
+```js
+UI.setup(scene)           // 每个场景 create() 第一行调用：注册按键 this.keys、重置状态、淡入
+UI.blocked(scene)         // 弹窗中或正在切场景时为 true
+UI.dir(scene)             // WASD → {x, y}
+UI.pressedF(scene)        // 这一帧刚按下 F。★ 每帧在 update 开头调用一次存进变量：const f = UI.pressedF(this);
+UI.fmt(clock)             // 455 → "07:35"
+UI.createClock(scene)     // 右上角时钟
+UI.tickClock(scene, delta)
+UI.createHud(scene, showHp) / UI.updateHud(scene)   // 左上角电量条（+ 血量格）
+UI.say(scene, text, target)   // 独白气泡，text 可以是数组（随机一句），target 传精灵则跟随头顶
+UI.hint(scene, text)          // 底部操作提示，传 null 隐藏
+UI.choice(scene, question, [a, b], onPick)   // 二选一，onPick(0 或 1)
+UI.fadeTo(scene, key, data)   // 淡出切场景
+UI.sfx(scene, key)            // 播放音效；没有素材时用合成音
+UI.rand(arrOrStr)             // 数组随机取一个
+```
+
+## 8. 场景流程
+
+```
+Boot → Intro → FindCar → Ride ─┬─ 到达 → Park {pushing:false} ─┐
+                               └─ 没电 → Park {pushing:true}  ─┤
+               Intro ← [F 开始第二天] ← Result ← Charge ← Class ←┘
+```
+
+- **Intro**：第 1 天用 `LINES.intro.day1`；之后电量 < 40 用 `low`，否则 `ok`。
+- **FindCar**：7:35 开始。车阵中有一辆是自己的（位置随机，左右被夹住）。按 F 查看，认出后变黄；要先挪开一辆邻车（每辆 +`moveCarMinutes` 分钟）才能解锁。越近"滴滴"越快 + 右上角信号格。无失败条件。
+- **Ride**：纵向长路，W 前进 S 刹车 A/D 换道。只在移动时耗电，坡道更快更慢。障碍：外卖车（后方冲上）、逆行车（迎面）、行人（横穿）、校车（慢、大）。被撞 hp−1 + 无敌闪烁；hp=0 摔倒，连按 F 扶车 → 回满血、掉 `fallBatteryCost` 电、falls+1。电量 ≤ 0 → late=true、clock+`deadBatteryMinutes` → 推车进 Park。到顶 → Park。
+- **Park**：车棚大多满，`freeSlots` 个空位（不在入口附近）。推车时速度减半、显示"已迟到"。站到空位按 F 停车 → 记录 arriveClock，晚于 8:00 则 late=true。
+- **Class**：电量 −`dayDrain`，时钟跳到 22:40。
+- **Charge**：到 23:00 门禁。桩状态随机：被占 / 坏了 / 扫码失败（第一次必失败，之后按概率成功）/ 空闲。插上后二选一：守着（每分钟 +`watchPerMinute`% 到 23:00）/ 回宿舍（`gambleWinRate` 充满，否则只 +`unpluggedGain`%）。门禁前没插上 → 'none'。
+- **Result**：充上电 = battery ≥ `chargedThreshold`。结局：准时+充上「难得顺利的一天」；准时+没充上「明天早上见分晓」；迟到+充上「至少明天有电了」；迟到+没充上「明天还得推车」。F 开始第二天（只保留电量），R 重新开始。
+
+## 9. 素材约定（C）
+
+图片放 `assets/img/<key>.png`，然后在 `src/assets.js` 把对应的 `file` 改成 `true`。**车辆类图片车头朝上。** 尺寸尽量与 assets.js 里一致（不一致也能用，但碰撞框会跟着变）。音效放 `assets/sfx/<key>.mp3`，同样在 assets.js 里改 true。
+
+## 10. 给 AI 的工作规则
+
+1. 只改被指定的文件；要改别人的文件，先说明原因。
+2. 不改约定：GameState 字段、CONFIG 结构、UI 函数名、贴图 key、场景 key。
+3. 数字进 CONFIG，文字进 LINES，不要写死在场景里。
+4. 场景间只通过 GameState 和 `UI.fadeTo(scene, key, data)` 传信息。
+5. 新场景 create() 第一行 `UI.setup(this)`；update 开头 `const f = UI.pressedF(this);`。
+6. 一次只做一个功能，改动尽量小，不要顺手重构。
+7. 代码加简短中文注释。
+8. 改完说明：改了哪里、怎么测试（DEBUG_START 设成什么、按什么键、应看到什么）。
+
+### 提示词模板
+
+```
+先阅读 CLAUDE.md。
+任务：在 src/scenes/Park.js 里加"碰到旁边的车会倒一排，要按 F 扶起来"。
+只改 Park.js，必要的新数值加到 config.js 的 park 里，新文案加到 lines.js 的 park 里。
+完成后告诉我怎么测试。
+```
+```
+先阅读 CLAUDE.md。
+现象：（描述）
+F12 控制台报错：（粘贴完整报错）
+相关文件：src/scenes/xxx.js
+找出原因并修复，只改必要的地方。
+```
+
+## 11. 加分项（第 9 小时功能冻结前有空再做）
+
+停车多米诺效果；门口违停选项（快但会被贴条）；背景音乐；手机虚拟摇杆；下雨天气。

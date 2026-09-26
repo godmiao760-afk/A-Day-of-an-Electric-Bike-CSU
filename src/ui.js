@@ -1,0 +1,267 @@
+// ===== 公用工具（A 负责，所有场景调用）=====
+// 时钟、独白气泡、提示、二选一弹窗、切场景、HUD、音效都在这里，场景里不要各自重写。
+
+const FONT = '"Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif';
+
+const UI = {
+  busy: false,     // 弹窗打开时为 true
+  lockUntil: 0,    // 弹窗关闭后短时间内屏蔽 F，防止一次按键触发两次
+
+  // 文字样式
+  style(size, color, extra) {
+    return Object.assign(
+      { fontFamily: FONT, fontSize: size + 'px', color: color || '#ffffff', resolution: 2 },
+      extra || {}
+    );
+  },
+
+  // 数组随机取一个；字符串原样返回
+  rand(x) {
+    return Array.isArray(x) ? Phaser.Utils.Array.GetRandom(x) : x;
+  },
+
+  // 455 → "07:35"
+  fmt(clock) {
+    const m = Math.floor(clock);
+    const h = Math.floor(m / 60) % 24;
+    const mm = m % 60;
+    return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+  },
+
+  // 每个场景 create() 第一行调用：重置弹窗状态、注册按键、淡入
+  setup(scene) {
+    UI.busy = false;
+    UI.lockUntil = scene.time.now + 300;   // 刚进场景 0.3 秒内不响应 F，防止上个场景按住的 F 连带触发
+    GameState.clockPaused = false;
+    scene._leaving = false;
+    scene._bubble = null;
+    scene._hint = null;
+    scene._clock = null;
+    scene._hud = null;
+    scene.keys = scene.input.keyboard.addKeys('W,A,S,D,F,R,UP,DOWN,LEFT,RIGHT');
+    scene.cameras.main.fadeIn(300, 0, 0, 0);
+  },
+
+  // 场景 update() 开头：if (UI.blocked(this)) return;
+  blocked(scene) {
+    return UI.busy || scene._leaving;
+  },
+
+  // WASD / 方向键 → {x, y}，各为 -1 / 0 / 1
+  dir(scene) {
+    const k = scene.keys;
+    let x = 0, y = 0;
+    if (k.A.isDown || k.LEFT.isDown) x -= 1;
+    if (k.D.isDown || k.RIGHT.isDown) x += 1;
+    if (k.W.isDown || k.UP.isDown) y -= 1;
+    if (k.S.isDown || k.DOWN.isDown) y += 1;
+    return { x, y };
+  },
+
+  // 这一帧是否"刚按下 F"。
+  // 注意：每帧在 update 开头调用一次，存进变量再用：const f = UI.pressedF(this);
+  // 不要写在 if 条件的后半截，否则之前按过的 F 会"留着"，走到物体旁边时突然触发。
+  pressedF(scene) {
+    const down = Phaser.Input.Keyboard.JustDown(scene.keys.F);
+    return down && !UI.busy && !scene._leaving && scene.time.now >= UI.lockUntil;
+  },
+
+  // ---------- 时钟 ----------
+  createClock(scene) {
+    scene._clock = scene.add.text(948, 12, UI.fmt(GameState.clock), UI.style(26, '#ffffff', {
+      backgroundColor: 'rgba(0,0,0,0.6)', padding: { x: 10, y: 4 }
+    })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
+    return scene._clock;
+  },
+
+  // 在 update(time, delta) 里每帧调用
+  tickClock(scene, delta) {
+    if (!UI.busy && !GameState.clockPaused && !scene._leaving) {
+      GameState.clock += delta / 1000 * CONFIG.timeScale / 60;
+    }
+    if (scene._clock) {
+      const c = GameState.clock;
+      scene._clock.setText(UI.fmt(c));
+      // 快到上课 / 快到门禁时变红
+      const warn = (c >= CONFIG.classStart - 5 && c < 12 * 60) || c >= CONFIG.curfew - 5;
+      scene._clock.setColor(warn ? '#f87171' : '#ffffff');
+    }
+  },
+
+  // ---------- 独白气泡 ----------
+  // target 传精灵时跟在它头顶；不传则显示在屏幕下方。text 可以是数组（随机一句）。
+  say(scene, text, target) {
+    text = UI.rand(text);
+    if (scene._bubble && scene._bubble.active) scene._bubble.destroy();
+    const b = scene.add.text(0, 0, text, UI.style(18, '#111111', {
+      backgroundColor: '#ffffff', padding: { x: 10, y: 6 },
+      wordWrap: { width: 360, useAdvancedWrap: true }
+    })).setOrigin(0.5, 1).setDepth(1100);
+
+    if (target) {
+      const follow = () => {
+        if (b.active && target.active) b.setPosition(target.x, target.y - target.displayHeight / 2 - 8);
+      };
+      follow();
+      scene.events.on('postupdate', follow);
+      b.once('destroy', () => scene.events.off('postupdate', follow));
+    } else {
+      b.setScrollFactor(0).setPosition(480, 470);
+    }
+
+    scene._bubble = b;
+    scene.time.delayedCall(2200, () => {
+      if (b.active) b.destroy();
+      if (scene._bubble === b) scene._bubble = null;
+    });
+    return b;
+  },
+
+  // ---------- 底部操作提示 ----------
+  hint(scene, text) {
+    if (!scene._hint) {
+      scene._hint = scene.add.text(480, 526, '', UI.style(18, '#fde68a', {
+        backgroundColor: 'rgba(0,0,0,0.65)', padding: { x: 12, y: 5 }
+      })).setOrigin(0.5, 1).setScrollFactor(0).setDepth(1000);
+    }
+    if (!text) { scene._hint.setVisible(false); return; }
+    if (scene._hint.text !== text) scene._hint.setText(text);
+    scene._hint.setVisible(true);
+  },
+
+  // ---------- 二选一弹窗 ----------
+  // 打开时时钟暂停；选完调用 onPick(0 或 1)
+  choice(scene, question, options, onPick) {
+    UI.busy = true;
+    const openedAt = scene.time.now;
+    const D = 2000;
+    const objs = [];
+    let index = 0;
+    let done = false;
+
+    objs.push(scene.add.rectangle(480, 270, 960, 540, 0x000000, 0.55).setScrollFactor(0).setDepth(D));
+    objs.push(scene.add.rectangle(480, 270, 580, 230, 0x1f2937).setStrokeStyle(3, 0xfacc15).setScrollFactor(0).setDepth(D));
+    objs.push(scene.add.text(480, 212, question, UI.style(22, '#ffffff', {
+      align: 'center', wordWrap: { width: 520, useAdvancedWrap: true }
+    })).setOrigin(0.5).setScrollFactor(0).setDepth(D));
+    objs.push(scene.add.text(480, 362, 'A / D 选择，F 确认（也可以用鼠标点）', UI.style(14, '#9ca3af'))
+      .setOrigin(0.5).setScrollFactor(0).setDepth(D));
+
+    const n = options.length;
+    const btns = options.map((label, i) => {
+      const b = scene.add.text(480 + (i - (n - 1) / 2) * 240, 300, label, UI.style(22, '#ffffff', {
+        backgroundColor: '#374151', padding: { x: 18, y: 8 }
+      })).setOrigin(0.5).setScrollFactor(0).setDepth(D).setInteractive({ useHandCursor: true });
+      b.on('pointerover', () => { index = i; refresh(); });
+      b.on('pointerdown', () => pick(i));
+      objs.push(b);
+      return b;
+    });
+
+    function refresh() {
+      btns.forEach((b, i) => {
+        b.setBackgroundColor(i === index ? '#facc15' : '#374151');
+        b.setColor(i === index ? '#111111' : '#ffffff');
+      });
+    }
+    refresh();
+
+    const kb = scene.input.keyboard;
+    const left = () => { index = (index + n - 1) % n; refresh(); };
+    const right = () => { index = (index + 1) % n; refresh(); };
+    const confirm = (e) => {
+      if (e && e.repeat) return;
+      if (scene.time.now - openedAt < 200) return; // 防止打开弹窗的那次按键直接确认
+      pick(index);
+    };
+    kb.on('keydown-A', left); kb.on('keydown-LEFT', left);
+    kb.on('keydown-D', right); kb.on('keydown-RIGHT', right);
+    kb.on('keydown-F', confirm);
+
+    function pick(i) {
+      if (done) return;
+      done = true;
+      kb.off('keydown-A', left); kb.off('keydown-LEFT', left);
+      kb.off('keydown-D', right); kb.off('keydown-RIGHT', right);
+      kb.off('keydown-F', confirm);
+      objs.forEach(o => o.destroy());
+      UI.busy = false;
+      UI.lockUntil = scene.time.now + 250;
+      onPick(i);
+    }
+  },
+
+  // ---------- 切场景 ----------
+  fadeTo(scene, key, data) {
+    if (scene._leaving) return;
+    scene._leaving = true;
+    UI.busy = false;
+    scene.cameras.main.fade(400, 0, 0, 0, true);   // true = 打断还没结束的淡入
+    // 用计时器切换，不依赖淡出事件（淡入没结束时淡出事件可能不触发）
+    scene.time.delayedCall(420, () => scene.scene.start(key, data));
+  },
+
+  // ---------- 左上角 HUD：电量条（+ 血量格）----------
+  createHud(scene, showHp) {
+    const hud = { showHp };
+    hud.bg = scene.add.rectangle(12, 12, 250, showHp ? 72 : 42, 0x000000, 0.55)
+      .setOrigin(0).setScrollFactor(0).setDepth(1000);
+    hud.g = scene.add.graphics().setScrollFactor(0).setDepth(1001);
+    hud.batLabel = scene.add.text(22, 20, '电量', UI.style(16)).setScrollFactor(0).setDepth(1001);
+    hud.batText = scene.add.text(206, 20, '', UI.style(16)).setScrollFactor(0).setDepth(1001);
+    if (showHp) hud.hpLabel = scene.add.text(22, 50, '血量', UI.style(16)).setScrollFactor(0).setDepth(1001);
+    scene._hud = hud;
+    UI.updateHud(scene);
+    return hud;
+  },
+
+  updateHud(scene) {
+    const h = scene._hud;
+    if (!h) return;
+    const g = h.g;
+    const b = Phaser.Math.Clamp(GameState.battery, 0, 100);
+    g.clear();
+    // 电量条
+    g.lineStyle(2, 0xffffff, 1).strokeRect(70, 22, 128, 16);
+    g.fillStyle(b > 50 ? 0x22c55e : b > 20 ? 0xfacc15 : 0xef4444, 1).fillRect(72, 24, 124 * b / 100, 12);
+    h.batText.setText(Math.ceil(b) + '%');
+    // 血量格
+    if (h.showHp) {
+      for (let i = 0; i < CONFIG.ride.maxHp; i++) {
+        const x = 70 + i * 28;
+        if (i < GameState.hp) g.fillStyle(0xef4444, 1).fillRect(x, 52, 20, 18);
+        g.lineStyle(2, 0xffffff, 1).strokeRect(x, 52, 20, 18);
+      }
+    }
+  },
+
+  // ---------- 音效 ----------
+  // 有素材就播放 assets/sfx/<key>.mp3；没有就用合成音顶替
+  sfx(scene, key) {
+    if (scene.cache.audio.exists(key)) { scene.sound.play(key); return; }
+    const presets = {
+      beep: [1400, 0.06, 'sine'],
+      hit:  [140, 0.18, 'square'],
+      fall: [80, 0.45, 'sawtooth'],
+      park: [880, 0.15, 'triangle'],
+      plug: [660, 0.12, 'sine']
+    };
+    const p = presets[key];
+    if (p) UI.tone(scene, p[0], p[1], p[2]);
+  },
+
+  tone(scene, freq, dur, type) {
+    try {
+      const ctx = scene.sound.context;
+      if (!ctx) return;
+      const o = ctx.createOscillator();
+      const v = ctx.createGain();
+      o.type = type || 'sine';
+      o.frequency.value = freq;
+      v.gain.setValueAtTime(0.12, ctx.currentTime);
+      v.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      o.connect(v); v.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + dur);
+    } catch (e) { /* 没有声音也不影响游戏 */ }
+  }
+};

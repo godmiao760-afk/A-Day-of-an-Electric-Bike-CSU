@@ -1,0 +1,3 @@
+放图片：文件名 = 贴图 key，例如 bike.png、rider.png
+然后在 src/assets.js 里把对应那一行的 file 改成 true。
+车辆类图片车头朝上。尺寸参考 src/assets.js。
