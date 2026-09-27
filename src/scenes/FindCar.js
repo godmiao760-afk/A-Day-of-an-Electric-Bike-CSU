@@ -197,6 +197,7 @@ class FindCar extends Phaser.Scene {
   moveAway(bike) {
     if (bike.getData('moved')) return;
     const C = CONFIG.findCar;
+    UI.sfx(this, 'move_alarm');
     bike.setData('moved', true);
     this.physics.world.disable(bike);   // 不再挡路
     this.movedCount++;

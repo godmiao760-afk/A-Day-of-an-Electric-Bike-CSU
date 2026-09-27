@@ -177,13 +177,16 @@ const ASSETS = {
   // 音效放进 assets/sfx/。保留旧的布尔配置兼容占位音效；需要指定文件格式时使用
   // { file: true, path: 'assets/sfx/文件名.ext' }。
   sounds: {
-    beep: false,  // 找车滴滴
-    hit:  false,  // 被撞
+    beep: { file: true, path: 'assets/sfx/电动车解锁_越近越响.mp3' }, // 找车滴滴
+    hit:  { file: true, path: 'assets/sfx/碰撞音效_调高响度.wav' },   // 被撞
     fall: false,  // 摔倒
     park: false,  // 停好车
     plug: false,  // 插上充电线
     whistle: false, // 交警哨声
     coin: false,     // 花钱 / 收钱
+    move_alarm: { file: true, path: 'assets/sfx/挪车报警声.wav' },
+    class_bell: { file: true, path: 'assets/sfx/上课铃声.m4a' },
+    tow: { file: true, path: 'assets/sfx/违者拖车.mp3' },
 
     // 六个结局的专用音效。文件名来自 assets/sfx/，格式可以是 mp3 或 wav。
     ending_perfect: { file: true, path: 'assets/sfx/完美音效.mp3' },
