@@ -111,6 +111,9 @@ const CONFIG = {
       police:   { width: 54, height: 81 }    // 检查点交警（342×512 逐帧）
     },
     policeFrameRate: 6,      // 交警挥指挥棒动画帧率
+    // 道路真图：放大倍数 + 图里路面中线的 x（原图像素）；倍数按"图里路面宽 × 倍数 ≈ 游戏路宽 400"算
+    roadArt:  { scale: 1.53, centerX: 517 },   // road_tile（图里路面约 386–648）
+    landmark: { scale: 0.89, centerX: 766 },   // road_stadium（图里路面约 540–990）
     wrongTints: [0xa5d8ff, 0xfecaca, 0xbbf7d0, 0xe9d5ff],  // 逆行同学的染色，免得和主角长一样
     walkerFrameRate: 8,      // 行人走路动画帧率
     fallStandMs: 700,        // 趴在地上多久后站起来看着车（毫秒）
@@ -121,12 +124,13 @@ const CONFIG = {
     routes: {
       // length 路长（像素）；spawnEvery 平均每隔多少毫秒生成障碍；slope 坡道起止（路程比例，null=没坡）
       // policeAt 交警检查点位置（路程比例，null=没有）；npc 各类障碍出现权重
+      // landmarkAt 体育场那张路图的中心位置（路程比例，null=没有）
       inside: {
-        length: 7200, spawnEvery: 1100, slope: [0.45, 0.65], policeAt: null,
+        length: 7200, spawnEvery: 1100, slope: [0.45, 0.65], policeAt: null, landmarkAt: 0.25,
         npc: { delivery: 2, wrong: 2.5, walker: 3.5, bus: 2, car: 0 }
       },
       outside: {
-        length: 4000, spawnEvery: 900, slope: null, policeAt: 0.55,
+        length: 4000, spawnEvery: 900, slope: null, policeAt: 0.55, landmarkAt: null,
         npc: { delivery: 3.5, wrong: 2.5, walker: 1, bus: 0, car: 3 }
       }
     }

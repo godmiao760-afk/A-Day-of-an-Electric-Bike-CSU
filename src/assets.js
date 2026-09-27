@@ -22,6 +22,9 @@ const ASSETS = {
     bg_charge_day:   { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/charging_bays_clear.png' }, // 备用：白天充电区
     bg_police:       { w: 1536, h: 1024, color: 0x1e3a8a, file: true, path: 'assets/img/background/police_station.png' },     // 派出所结局背景
     ui_controls_panel: { w: 1164, h: 138, color: 0x000000, file: true, path: 'assets/img/ui/controls_panel_blank.png' },    // 操作说明底板
+    // 骑行道路（路 + 两边景观画在一张图里，代替原来的 road 色块和两侧背景）
+    road_tile:    { w: 1024, h: 1536, color: 0x374151, file: true, path: 'assets/img/road/xiaodianlv-vertical-tileable.png' },   // 竖向可重复的路，两条路线都用
+    road_stadium: { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/road/620880161592b4a6cd53ef40b6066d93.png' }, // 校内路线中间插一张：体育场路段
     player:       { w: 32, h: 32,  color: 0x3b82f6, file: false }, // 其他场景的步行占位图
     // 找车步行：前 / 后 / 左 / 右各 3 帧（342×512），另有戴头盔版。占位帧与原图同尺寸，缺帧时不会跳变缩放。
     player_walk_front_1: { w: 342, h: 512, color: 0x3b82f6, file: true, path: 'assets/img/character/player_walk_frames/walk_front_01.png' },

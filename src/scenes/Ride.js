@@ -49,21 +49,30 @@ class Ride extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, 960, H);
 
     // ---- 画地图 ----
-    // 草地和路面只做一屏大小，跟着镜头滚动纹理（避免生成超长贴图）
-    const sideTex = s.route === 'outside' ? 'road' : 'grass';   // 校外两边是街道
-    const bgKey = s.route === 'outside' ? 'bg_ride_outside' : 'bg_ride_inside';   // 有真图：校外过江桥 / 校内体育场
-    if (UI.hasArt(bgKey)) {
-      this.bgGrass = this.add.tileSprite(0, 0, 960, 540, bgKey).setOrigin(0).setScrollFactor(0);
-      this.bgGrass.setTileScale(960 / this.bgGrass.frame.width);   // 横向铺满一屏，竖向重复
+    // 有道路真图：路 + 两边景观是一张竖向可重复的图，只做一屏大小，跟着镜头滚动纹理；校内在 landmarkAt 处插一张体育场
+    // 没图：草地 / 街道 + 灰色路面色块（避免生成超长贴图）
+    this.roadArt = UI.hasArt('road_tile');
+    this.bgRoad = null;
+    if (this.roadArt) {
+      const A = R.roadArt;
+      this.bgGrass = this.add.tileSprite(0, 0, 960, 540, 'road_tile').setOrigin(0).setScrollFactor(0)
+        .setTileScale(A.scale);
+      this.bgGrass.tilePositionX = A.centerX - 480 / A.scale;   // 图里路中线对准屏幕中间
+      if (this.route.landmarkAt && UI.hasArt('road_stadium')) {
+        const L = R.landmark;
+        const img = this.add.image(0, this.startY - len * this.route.landmarkAt, 'road_stadium').setScale(L.scale);
+        img.setX(480 + (img.width / 2 - L.centerX) * L.scale);   // 同样让图里路中线对准屏幕中间
+      }
     } else {
+      const sideTex = s.route === 'outside' ? 'road' : 'grass';   // 校外两边是街道
       this.bgGrass = this.add.tileSprite(0, 0, 960, 540, sideTex).setOrigin(0).setScrollFactor(0);
       if (s.route === 'outside') this.bgGrass.setTint(0x9ca3af);
+      this.bgRoad = this.add.tileSprite(this.ROAD_L, 0, this.ROAD_R - this.ROAD_L, 540, 'road')
+        .setOrigin(0).setScrollFactor(0);
     }
-    this.bgRoad = this.add.tileSprite(this.ROAD_L, 0, this.ROAD_R - this.ROAD_L, 540, 'road')
-      .setOrigin(0).setScrollFactor(0);
     if (this.route.slope) {
       this.add.tileSprite(this.ROAD_L, this.slopeTopY, this.ROAD_R - this.ROAD_L,
-        this.slopeBotY - this.slopeTopY, 'slope').setOrigin(0).setAlpha(0.85);
+        this.slopeBotY - this.slopeTopY, 'slope').setOrigin(0).setAlpha(this.roadArt ? 0.35 : 0.85);   // 有路图就淡一点，别把路盖住
       this.add.text(this.ROAD_R + 20, this.slopeBotY - 40, '⬆ 大坡\n耗电翻倍', UI.style(22, '#fde68a'));
       this.add.text(this.ROAD_L - 20, this.slopeTopY + 20, '坡顶', UI.style(20, '#fde68a')).setOrigin(1, 0);
     }
@@ -75,15 +84,16 @@ class Ride extends Phaser.Scene {
         UI.style(20, '#fca5a5', { align: 'right' })).setOrigin(1, 0);
     }
 
-    // 车道虚线
+    // 车道虚线 + 路边线（路图里自带标线，有图就不画）
     const g = this.add.graphics();
-    g.fillStyle(0xffffff, 0.35);
-    for (let i = 1; i < this.LANES.length; i++) {
-      const x = this.ROAD_L + i * 100 - 2;
-      for (let y = 0; y < H; y += 80) g.fillRect(x, y, 4, 40);
+    if (!this.roadArt) {
+      g.fillStyle(0xffffff, 0.35);
+      for (let i = 1; i < this.LANES.length; i++) {
+        const x = this.ROAD_L + i * 100 - 2;
+        for (let y = 0; y < H; y += 80) g.fillRect(x, y, 4, 40);
+      }
+      g.fillStyle(0xfacc15, 0.8).fillRect(this.ROAD_L, 0, 4, H).fillRect(this.ROAD_R - 4, 0, 4, H);
     }
-    // 路边线
-    g.fillStyle(0xfacc15, 0.8).fillRect(this.ROAD_L, 0, 4, H).fillRect(this.ROAD_R - 4, 0, 4, H);
 
     // 终点：教学楼
     this.add.tileSprite(0, 0, 960, this.goalY - 60, 'building').setOrigin(0);
@@ -150,8 +160,9 @@ class Ride extends Phaser.Scene {
 
   update(time, delta) {
     // 背景纹理跟随镜头
-    this.bgRoad.tilePositionY = this.cameras.main.scrollY;
-    this.bgGrass.tilePositionY = this.cameras.main.scrollY / this.bgGrass.tileScaleY;   // 缩放过的纹理按纹理像素滚
+    const sy = this.cameras.main.scrollY;
+    if (this.bgRoad) this.bgRoad.tilePositionY = sy;
+    this.bgGrass.tilePositionY = sy / this.bgGrass.tileScaleY;   // 缩放过的纹理按纹理像素滚
     UI.tickClock(this, delta);
     UI.updateHud(this);
     const f = UI.pressedF(this);
