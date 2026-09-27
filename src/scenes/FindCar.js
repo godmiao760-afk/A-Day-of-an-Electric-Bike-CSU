@@ -67,9 +67,10 @@ class FindCar extends Phaser.Scene {
     })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
     this.nextBeep = 0;
     this.done = false;
-    this.add.text(12, 510, LINES.findCar.controls, UI.style(14, '#ffffff', {
+    const ctl = this.add.text(12, 510, LINES.findCar.controls, UI.style(14, '#ffffff', {
       backgroundColor: 'rgba(0,0,0,0.65)', padding: { x: 8, y: 3 }
     })).setScrollFactor(0).setDepth(1000);
+    if (UI.backText(this, ctl)) ctl.setPosition(18, 504);   // 操作说明垫上文本框底板
 
     if (isHungry()) UI.sfx(this, 'hunger');
     UI.say(this, isHungry() ? LINES.hungry : LINES.findCar.start, this.player);
@@ -198,6 +199,7 @@ class FindCar extends Phaser.Scene {
   moveAway(bike) {
     if (bike.getData('moved')) return;
     const C = CONFIG.findCar;
+    UI.sfx(this, 'move_alarm');
     bike.setData('moved', true);
     this.physics.world.disable(bike);   // 不再挡路
     this.movedCount++;

@@ -7,13 +7,15 @@ class Boot extends Phaser.Scene {
     for (const [key, a] of Object.entries(ASSETS.images)) {
       if (a.file) this.load.image(key, a.path || ('assets/img/' + key + '.png'));
     }
-    for (const [key, sound] of Object.entries(ASSETS.sounds)) {
-      const descriptor = sound && typeof sound === 'object' ? sound : null;
-      const enabled = descriptor ? descriptor.file !== false : !!sound;
-      if (!enabled) continue;
-      this.load.audio(key, descriptor && descriptor.path
-        ? descriptor.path
-        : 'assets/sfx/' + key + '.mp3');
+    for (const [key, definition] of Object.entries(ASSETS.sounds)) {
+      // Legacy boolean entries remain supported; explicit entries use { file: true, path }.
+      // WAV, MP3, M4A and other extensions are loaded from the supplied path.
+      const hasFile = definition === true || (definition && definition.file);
+      if (!hasFile) continue;
+      const path = typeof definition === 'object' && definition.path
+        ? definition.path
+        : 'assets/sfx/' + key + '.mp3';
+      this.load.audio(key, path);
     }
     this.load.on('loaderror', (file) => console.warn('素材加载失败，将使用色块：', file.key));
   }

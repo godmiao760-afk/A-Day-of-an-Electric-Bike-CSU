@@ -11,6 +11,7 @@ class Class extends Phaser.Scene {
 
   create() {
     UI.setup(this);
+    UI.sfx(this, 'class_bell');
     const s = GameState;
     const morning = this.part === 'morning';
     const H = CONFIG.hunger;

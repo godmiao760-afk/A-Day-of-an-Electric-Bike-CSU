@@ -137,6 +137,42 @@ const UI = {
     }
   },
 
+  // ---------- 文本框底板 ----------
+  // 有 ui_controls_panel 图（而且是 WebGL）时返回一个九宫格底板，四角不变形；没有返回 null，调用方继续用纯色背景
+  canPanel(scene) {
+    return UI.hasArt('ui_controls_panel') && scene.sys.game.renderer.type === Phaser.WEBGL;
+  },
+  panel(scene, x, y, w, h) {
+    if (!UI.canPanel(scene)) return null;
+    const P = CONFIG.panel, c = P.corner, s = P.scale;
+    // 九宫格按缩小后的尺寸画，再整体放大回去：四角看起来是 corner × scale 像素
+    return scene.add.nineslice(x, y, 'ui_controls_panel', null, w / s, h / s, c, c, c, c).setScale(s);
+  },
+  // 给一段文字垫上底板（跟着文字的位置、原点、滚动、深度、大小），文字改成深色；返回底板或 null
+  backText(scene, t) {
+    const P = CONFIG.panel, s = P.scale;
+    const bg = UI.panel(scene, 0, 0, 10, 10);
+    if (!bg) return null;
+    t.setBackgroundColor(null).setColor(P.textColor);
+    bg.setOrigin(0.5).setScrollFactor(t.scrollFactorX, t.scrollFactorY).setDepth(t.depth - 0.01);
+    let lw = -1, lh = -1;
+    const sync = () => {
+      if (!t.active) return;
+      if (t.width !== lw || t.height !== lh) {   // 文字变了就跟着改框的大小
+        lw = t.width; lh = t.height;
+        bg.setSize((lw + P.padX * 2) / s, (lh + P.padY * 2) / s);
+      }
+      // 框中心 = 文字中心（文字自己的留白由 padX / padY 决定）
+      bg.setPosition(t.x + (0.5 - t.originX) * lw, t.y + (0.5 - t.originY) * lh);
+      bg.setVisible(t.visible).setAlpha(t.alpha);
+    };
+    sync();
+    scene.events.on('postupdate', sync);
+    t.once('destroy', () => { scene.events.off('postupdate', sync); bg.destroy(); });
+    t._panel = bg;
+    return bg;
+  },
+
   // ---------- 独白气泡 ----------
   // target 传精灵时跟在它头顶；不传则显示在屏幕下方。text 可以是数组（随机一句）。
   say(scene, text, target) {
@@ -146,6 +182,7 @@ const UI = {
       backgroundColor: '#ffffff', padding: { x: 10, y: 6 },
       wordWrap: { width: 360, useAdvancedWrap: true }
     })).setOrigin(0.5, 1).setDepth(1100);
+    UI.backText(scene, b);   // 有文本框图就垫上米色底板
 
     if (target) {
       const follow = () => {
@@ -174,6 +211,7 @@ const UI = {
       scene._hint = scene.add.text(480, 526, '', UI.style(18, '#fde68a', {
         backgroundColor: 'rgba(0,0,0,0.65)', padding: { x: 12, y: 5 }
       })).setOrigin(0.5, 1).setScrollFactor(0).setDepth(1000);
+      if (UI.backText(scene, scene._hint)) scene._hint.setY(522);   // 有底板：往上挪一点，框底不贴屏幕边
     }
     if (!text) { scene._hint.setVisible(false); return; }
     if (scene._hint.text !== text) scene._hint.setText(text);
@@ -210,10 +248,17 @@ const UI = {
     const btnTop = panelTop + 24 + q.height + 24;
 
     objs.push(scene.add.rectangle(480, 270, 960, 540, 0x000000, 0.55).setScrollFactor(0).setDepth(D));
-    objs.push(scene.add.rectangle(480, 270, 640, panelH, 0x1f2937).setStrokeStyle(3, 0xfacc15).setScrollFactor(0).setDepth(D));
+    // 面板：有文本框图就用米色底板 + 深色字，没有就用深色矩形 + 黄边
+    const art = UI.panel(scene, 480, 270, 640, panelH);
+    if (art) {
+      objs.push(art.setScrollFactor(0).setDepth(D));
+      q.setColor(CONFIG.panel.textColor);
+    } else {
+      objs.push(scene.add.rectangle(480, 270, 640, panelH, 0x1f2937).setStrokeStyle(3, 0xfacc15).setScrollFactor(0).setDepth(D));
+    }
     objs.push(q);
     objs.push(scene.add.text(480, panelTop + panelH - 20,
-      (vertical ? 'W / S' : 'A / D') + ' 选择，F 确认（也可以用鼠标点）', UI.style(14, '#9ca3af'))
+      (vertical ? 'W / S' : 'A / D') + ' 选择，F 确认（也可以用鼠标点）', UI.style(14, art ? '#8a6a4a' : '#9ca3af'))
       .setOrigin(0.5).setScrollFactor(0).setDepth(D + 1));
 
     const btns = opts.map((o, i) => {
@@ -229,11 +274,14 @@ const UI = {
       return b;
     });
 
+    // 按钮配色：米色底板上用暖棕色，深色面板上用灰色
+    const C = art ? { off: '#e6cfa8', offText: '#4a3421', dis: '#efe2cc', disText: '#b8a488' }
+                  : { off: '#374151', offText: '#ffffff', dis: '#27272a', disText: '#6b7280' };
     function refresh() {
       btns.forEach((b, i) => {
-        if (!enabled(i)) { b.setBackgroundColor('#27272a'); b.setColor('#6b7280'); return; }
-        b.setBackgroundColor(i === index ? '#facc15' : '#374151');
-        b.setColor(i === index ? '#111111' : '#ffffff');
+        if (!enabled(i)) { b.setBackgroundColor(C.dis); b.setColor(C.disText); return; }
+        b.setBackgroundColor(i === index ? '#facc15' : C.off);
+        b.setColor(i === index ? '#111111' : C.offText);
       });
     }
     refresh();

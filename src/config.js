@@ -13,6 +13,14 @@ const CONFIG = {
   dayDrain: 20,              // 白天额外耗电（下午课结束时扣）
   chargedThreshold: 60,      // 明早电量 ≥ 此值算"充上电"
 
+  // 文本框底板（ui_controls_panel，1164×138 米色圆角框）：九宫格拉伸，四角不变形
+  panel: {
+    corner: 26,              // 原图四角圆弧 + 描边占的像素（拉伸时保持不变）
+    scale: 0.5,              // 四角缩小倍数（原图角太大，小气泡里会显得粗）
+    padX: 6, padY: 4,        // 文字自身 padding 之外，再往外留的边（框的描边不压字）
+    textColor: '#4a3421'     // 米色底上的文字颜色（深棕）
+  },
+
   ending: {
     totalDays: 5,            // 第几天下午课结束判最终结局（演示可改 3）
     passMaxLate: 5           // 迟到 0 次 = 完美；≤ 此值 = 合格；更多 = 不合格

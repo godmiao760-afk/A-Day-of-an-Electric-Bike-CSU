@@ -174,19 +174,28 @@ const ASSETS = {
     end_broke:    { w: 320, h: 240, color: 0x991b1b, file: true,
       path: 'assets/img/ending-backgrounds/begging_ending.png' }         // 身无分文：跪地捧碗
   },
-  // 音效资源可以用布尔值（默认 assets/sfx/<key>.mp3），
-  // 也可以指定 file/path 以支持其它文件名和格式（例如 wav）。
+  // Sound assets may use booleans (default assets/sfx/<key>.mp3) or explicit paths.
   sounds: {
-    beep: { file: true, path: 'assets/sfx/电动车解锁_越近越响.mp3' }, // 找车滴滴
-    hit:  { file: true, path: 'assets/sfx/电驴相撞触发.mp3' }, // 骑行被撞
-    fall: false,  // 摔倒
-    park: false,  // 停好车
-    plug: { file: true, path: 'assets/sfx/插插座声音_调高响度.mp3' }, // 插上充电线
-    whistle: { file: true, path: 'assets/sfx/交警吹哨.wav' }, // 交警哨声
-    coin: false,     // 收钱（保留合成音）
-    domino: { file: true, path: 'assets/sfx/碰撞音效_调高响度.wav' }, // 车棚多米诺倒车
-    policeVoice: { file: true, path: 'assets/sfx/交警呵斥.mp3' }, // 交警人声
-    pay: { file: true, path: 'assets/sfx/扣款声.wav' }, // 钱包扣钱
-    hunger: { file: true, path: 'assets/sfx/肚子咕咕叫.wav' } // 饥饿提示
+    beep: { file: true, path: 'assets/sfx/电动车解锁_越近越响.mp3' },
+    hit: { file: true, path: 'assets/sfx/电驴相撞触发.mp3' },
+    fall: false,
+    park: false,
+    plug: { file: true, path: 'assets/sfx/插插座声音_调高响度.mp3' },
+    whistle: { file: true, path: 'assets/sfx/交警吹哨.wav' },
+    coin: false,
+    domino: { file: true, path: 'assets/sfx/碰撞音效_调高响度.wav' },
+    policeVoice: { file: true, path: 'assets/sfx/交警呵斥.mp3' },
+    pay: { file: true, path: 'assets/sfx/扣款声.wav' },
+    hunger: { file: true, path: 'assets/sfx/肚子咕咕叫.wav' },
+    move_alarm: { file: true, path: 'assets/sfx/挪车报警声.wav' },
+    class_bell: { file: true, path: 'assets/sfx/上课铃声.m4a' },
+    tow: { file: true, path: 'assets/sfx/违者拖车.mp3' },
+    ending_perfect: { file: true, path: 'assets/sfx/完美音效.mp3' },
+    ending_pass: { file: true, path: 'assets/sfx/合格音效.wav' },
+    ending_fail: { file: true, path: 'assets/sfx/游戏失败哭声.mp3' },
+    ending_faint_belly: { file: true, path: 'assets/sfx/肚子咕咕叫.wav' },
+    ending_faint: { file: true, path: 'assets/sfx/饿晕倒.mp3' },
+    ending_police: { file: true, path: 'assets/sfx/镣铐声_派出所.wav' },
+    ending_broke: { file: true, path: 'assets/sfx/乞讨.mp3' }
   }
 };
