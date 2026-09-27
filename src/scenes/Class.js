@@ -14,6 +14,7 @@ class Class extends Phaser.Scene {
     const s = GameState;
     const morning = this.part === 'morning';
     const H = CONFIG.hunger;
+    const hungryBefore = isHungry();
 
     // 判迟到：上午看 late（Ride / Park 判好的）；下午看中午选项花完的时间
     const pmArrive = s.clock;
@@ -26,6 +27,7 @@ class Class extends Phaser.Scene {
 
     const hungerBefore = Math.round(s.hunger);
     s.hunger = Math.max(0, s.hunger - H.perClass);
+    if (!hungryBefore && isHungry()) UI.sfx(this, 'hunger');
     const batBefore = Math.round(Math.max(0, s.battery));
     if (!morning) s.battery = Math.max(0, s.battery - CONFIG.dayDrain);
     s.clock = morning ? CONFIG.noonClock : CONFIG.eveningClock;

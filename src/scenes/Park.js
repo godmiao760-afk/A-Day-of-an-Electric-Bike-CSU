@@ -207,6 +207,7 @@ class Park extends Phaser.Scene {
       if (Math.random() < P.ticketChance) {
         // 被贴条：罚款可以扣成负数，不算进 spent（和 policeCheck 一致）
         addFine(L.ticketReason, P.ticketFine);
+        UI.sfx(this, 'pay');
         UI.updateHud(this);
         // 弹窗关掉时：罚到没钱 → 隐藏结局，否则照常去上课
         const afterTicket = () => {
@@ -251,7 +252,7 @@ class Park extends Phaser.Scene {
           duration: 150, ease: 'Quad.In' });
       });
     });
-    UI.sfx(this, 'fall');
+    UI.sfx(this, 'domino');
     this.cameras.main.shake(120, 0.005);
     UI.say(this, LINES.park.domino, this.player);
   }

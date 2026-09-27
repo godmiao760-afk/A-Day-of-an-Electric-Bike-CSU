@@ -113,13 +113,13 @@ class NodeScene extends Phaser.Scene {
       if (P[id]) s.clock += Phaser.Math.Between(P[id].minutes[0], P[id].minutes[1]);
       if (id === 'canteen') {
         spend(P.canteen.cost); eat(P.canteen.food); s.meals.push('食堂');
-        UI.sfx(this, 'coin');
+        UI.sfx(this, 'pay');
         this.finish(M.ateCanteen);
       } else if (id === 'houhu') {
         this.houhu();
       } else if (id === 'license') {
         spend(P.license.cost); s.items.license = true;
-        UI.sfx(this, 'coin');
+        UI.sfx(this, 'pay');
         this.finish(M.gotLicense);
       } else {
         this.finish(M.skipped);
@@ -134,15 +134,17 @@ class NodeScene extends Phaser.Scene {
     // extra：吃完那句后面再补一句（硬闯成功的预兆）
     const eatThere = (extra) => {
       spend(P.houhu.cost); eat(P.houhu.food); s.meals.push('后湖');
-      UI.sfx(this, 'coin');
+      UI.sfx(this, 'pay');
       this.finish(extra ? UI.rand(LINES.meals.ateHouhu) + '\n' + extra : LINES.meals.ateHouhu);
     };
     if (s.policeToday && Math.random() < CONFIG.police.encounterChance) {   // 每次单独掷一次是否碰上交警
+      UI.sfx(this, 'whistle');
+      UI.sfx(this, 'policeVoice');
       UI.choice(this, L.askStop, [L.optStop, L.optRun], (i) => {
-        UI.sfx(this, 'whistle');
         if (i === 0) {
           // 停车受检：和原来一样
           const r = policeCheck(false);
+          if (r.fines.length) UI.sfx(this, 'pay');
           UI.updateHud(this);
           UI.alert(this, L.houhu + '\n\n' + policeText(r), () => {
             // 罚完钱还够不够吃

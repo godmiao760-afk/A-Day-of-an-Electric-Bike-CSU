@@ -159,6 +159,7 @@ class Charge extends Phaser.Scene {
     UI.hint(this, null);
     UI.sfx(this, 'plug');
     spend(CONFIG.money.charge);   // 扫码付钱
+    UI.sfx(this, 'pay');
     UI.updateHud(this);           // 只刷这一次（显示扣钱），之后 HUD 冻住
     this.player.setVelocity(0);
     this.player.disableBody();   // 插上了不再碰撞

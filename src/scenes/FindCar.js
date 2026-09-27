@@ -71,6 +71,7 @@ class FindCar extends Phaser.Scene {
       backgroundColor: 'rgba(0,0,0,0.65)', padding: { x: 8, y: 3 }
     })).setScrollFactor(0).setDepth(1000);
 
+    if (isHungry()) UI.sfx(this, 'hunger');
     UI.say(this, isHungry() ? LINES.hungry : LINES.findCar.start, this.player);
     // 只提示背包在哪，不提醒要戴头盔
     this.bpTip = this.add.text(948, 90, LINES.findCar.backpackTip, UI.style(15, '#fde68a', {
@@ -234,7 +235,7 @@ class FindCar extends Phaser.Scene {
           duration: 150, ease: 'Quad.In' });
       });
     });
-    UI.sfx(this, 'fall');
+    UI.sfx(this, 'domino');
     this.cameras.main.shake(120, 0.005);
     UI.say(this, LINES.park.domino, this.player);
     return true;

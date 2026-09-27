@@ -360,7 +360,7 @@ const UI = {
   },
 
   // ---------- 音效 ----------
-  // 有素材就播放 assets/sfx/<key>.mp3；没有就用合成音顶替
+  // 有素材就播放 Boot 载入的音频；没有就用合成音顶替
   sfx(scene, key) {
     if (scene.cache.audio.exists(key)) { scene.sound.play(key); return; }
     const presets = {
@@ -370,7 +370,11 @@ const UI = {
       park: [880, 0.15, 'triangle'],
       plug: [660, 0.12, 'sine'],
       whistle: [2200, 0.35, 'square'],
-      coin: [1200, 0.1, 'triangle']
+      coin: [1200, 0.1, 'triangle'],
+      domino: [110, 0.28, 'square'],
+      policeVoice: [180, 0.32, 'sawtooth'],
+      pay: [220, 0.16, 'square'],
+      hunger: [95, 0.5, 'sawtooth']
     };
     const p = presets[key];
     if (p) UI.tone(scene, p[0], p[1], p[2]);

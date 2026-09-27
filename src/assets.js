@@ -174,14 +174,19 @@ const ASSETS = {
     end_broke:    { w: 320, h: 240, color: 0x991b1b, file: true,
       path: 'assets/img/ending-backgrounds/begging_ending.png' }         // 身无分文：跪地捧碗
   },
-  // 音效放进 assets/sfx/，mp3 格式。有了就改成 true。
+  // 音效资源可以用布尔值（默认 assets/sfx/<key>.mp3），
+  // 也可以指定 file/path 以支持其它文件名和格式（例如 wav）。
   sounds: {
-    beep: false,  // 找车滴滴
-    hit:  false,  // 被撞
+    beep: { file: true, path: 'assets/sfx/电动车解锁_越近越响.mp3' }, // 找车滴滴
+    hit:  { file: true, path: 'assets/sfx/电驴相撞触发.mp3' }, // 骑行被撞
     fall: false,  // 摔倒
     park: false,  // 停好车
-    plug: false,  // 插上充电线
-    whistle: false, // 交警哨声
-    coin: false     // 花钱 / 收钱
+    plug: { file: true, path: 'assets/sfx/插插座声音_调高响度.mp3' }, // 插上充电线
+    whistle: { file: true, path: 'assets/sfx/交警吹哨.wav' }, // 交警哨声
+    coin: false,     // 收钱（保留合成音）
+    domino: { file: true, path: 'assets/sfx/碰撞音效_调高响度.wav' }, // 车棚多米诺倒车
+    policeVoice: { file: true, path: 'assets/sfx/交警呵斥.mp3' }, // 交警人声
+    pay: { file: true, path: 'assets/sfx/扣款声.wav' }, // 钱包扣钱
+    hunger: { file: true, path: 'assets/sfx/肚子咕咕叫.wav' } // 饥饿提示
   }
 };

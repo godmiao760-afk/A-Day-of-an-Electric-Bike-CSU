@@ -240,6 +240,7 @@ class Ride extends Phaser.Scene {
     this.vy = 0;
     this.player.setVelocity(0);
     UI.sfx(this, 'whistle');
+    UI.sfx(this, 'policeVoice');
     // 检查点附近的障碍清掉，免得弹窗关掉后立刻被撞
     this.npcs.getChildren().slice().forEach(o => {
       if (Math.abs(o.y - this.player.y) < 500) o.destroy();
@@ -256,6 +257,7 @@ class Ride extends Phaser.Scene {
   policeStop() {
     const s = GameState;
     const r = policeCheck(s.passenger);
+    if (r.fines.length) UI.sfx(this, 'pay');
     UI.updateHud(this);
     UI.alert(this, LINES.police.stop + '\n\n' + policeText(r), () => {
       // 罚款可能把钱扣到 ≤ 0 → 隐藏结局
