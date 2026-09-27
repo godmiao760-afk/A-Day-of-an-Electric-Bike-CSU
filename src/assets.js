@@ -190,6 +190,7 @@ const ASSETS = {
     move_alarm: { file: true, path: 'assets/sfx/挪车报警声.wav' },
     class_bell: { file: true, path: 'assets/sfx/上课铃声.m4a' },
     tow: { file: true, path: 'assets/sfx/违者拖车.mp3' },
+    watering_bgm: { file: true, path: 'assets/sfx/洒水车bgm.mp3' },
     ending_perfect: { file: true, path: 'assets/sfx/完美音效.mp3' },
     ending_pass: { file: true, path: 'assets/sfx/合格音效.wav' },
     ending_fail: { file: true, path: 'assets/sfx/游戏失败哭声.mp3' },

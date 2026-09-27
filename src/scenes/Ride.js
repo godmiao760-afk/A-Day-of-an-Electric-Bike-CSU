@@ -142,6 +142,8 @@ class Ride extends Phaser.Scene {
     this.getting = false;      // 扶正了、正停着准备骑上去
     this.presses = 0;
     this.ending = false;
+    this.wateringBgm = null;
+    this.events.once('shutdown', () => this.stopWateringBgm());
     this.warnedLow = false;
     this.warnedSlope = false;
     this.warnedPolice = false;
@@ -390,6 +392,7 @@ class Ride extends Phaser.Scene {
       const bigs = ['npc_bus', 'npc_bus_2', 'npc_cart', 'npc_cart_2'].filter(k => UI.hasArt(k));
       const big = bigs.length ? Phaser.Utils.Array.GetRandom(bigs) : 'npc_bus';
       o = this.addCar('bus', big, lane, top - 160, -50);
+      if (o && big.startsWith('npc_cart')) this.startWateringBgm();
     }
     if (!o) return;
     this.sizeNpc(o, type);
@@ -532,6 +535,22 @@ class Ride extends Phaser.Scene {
     this.npcs.getChildren().slice().forEach(o => {
       if (o.y > top + 900 || o.y < top - 900 || o.x < 150 || o.x > 810) o.destroy();
     });
+    if (!this.npcs.getChildren().some(o => String(o.texture.key).startsWith('npc_cart'))) {
+      this.stopWateringBgm();
+    }
+  }
+
+  startWateringBgm() {
+    if (this.wateringBgm || !this.cache.audio.exists('watering_bgm')) return;
+    this.wateringBgm = this.sound.add('watering_bgm', { loop: true, volume: 0.35 });
+    this.wateringBgm.play();
+  }
+
+  stopWateringBgm() {
+    if (!this.wateringBgm) return;
+    this.wateringBgm.stop();
+    this.wateringBgm.destroy();
+    this.wateringBgm = null;
   }
 
   // ---------- 被撞 ----------
