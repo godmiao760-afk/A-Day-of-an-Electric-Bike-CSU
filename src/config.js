@@ -104,9 +104,13 @@ const CONFIG = {
       delivery: { width: 40, height: 86, body: [0.8, 0.85] },   // 外卖车
       wrong:    { width: 34, height: 80, body: [0.8, 0.85] },   // 逆行车（没专门的图时用别的同学骑车图 + 染色）
       walker:   { width: 42, height: 63, body: [0.5, 0.7] },    // 横穿的行人（原图左右留白多，碰撞框窄一点）
+      bus:      { width: 58, height: 184, body: [0.85, 0.92] }, // 校车 / 洒水车
+      car:      { width: 56, height: 100, body: [0.85, 0.9] },  // 小轿车（校外）
       fall:     { width: 190, height: 190 }, // 摔倒：趴地 / 站起来看车（1024 画布）
-      lift:     { width: 144, height: 108 }  // 扶车逐帧（512×384 画布，和摔倒图人物一样大）
+      lift:     { width: 144, height: 108 }, // 扶车逐帧（512×384 画布，和摔倒图人物一样大）
+      police:   { width: 54, height: 81 }    // 检查点交警（342×512 逐帧）
     },
+    policeFrameRate: 6,      // 交警挥指挥棒动画帧率
     wrongTints: [0xa5d8ff, 0xfecaca, 0xbbf7d0, 0xe9d5ff],  // 逆行同学的染色，免得和主角长一样
     walkerFrameRate: 8,      // 行人走路动画帧率
     fallStandMs: 700,        // 趴在地上多久后站起来看着车（毫秒）
@@ -141,6 +145,7 @@ const CONFIG = {
     bike: { width: 30, height: 68, bodyWidth: 26, bodyHeight: 56 },   // 车棚里停着的车
     rider: { width: 30, height: 70, bodyWidth: 22, bodyHeight: 22 },  // 骑车的主角（碰撞框小一点，方便钻进车位）
     pusher: { width: 72, height: 54, bodyWidth: 22, bodyHeight: 22 }, // 推车的主角（侧视，只左右翻转）
+    pushWalk: { width: 40, height: 60 },                              // 推车逐帧图（342×512）的显示尺寸，碰撞框沿用 pusher
     // 门口违停：离入口最近，省时间，但可能被贴条
     ticketChance: 0.5,       // 被贴条的概率
     ticketFine: 20           // 贴条罚款
@@ -155,6 +160,12 @@ const CONFIG = {
     unpluggedGain: 30,       // 被拔线时只充进去多少 %
     // 有真图时的显示尺寸（像素）；body 是碰撞框（像素）
     bike: { width: 34, height: 78 },                                   // 桩前停着的车（别人的 / 插上后自己的）
-    pusher: { width: 96, height: 72, bodyWidth: 30, bodyHeight: 40 }  // 推车的主角（侧视，只左右翻转）
+    pusher: { width: 96, height: 72, bodyWidth: 30, bodyHeight: 40 }, // 推车的主角（侧视，只左右翻转）
+    pushWalk: { width: 53, height: 80 },                              // 推车逐帧图（342×512）的显示尺寸，碰撞框沿用 pusher
+    // 有背景图 bg_charge 时：桩对准图里画出来的桩（图里画了 18 根，挑 8 根能用的，从左到右，屏幕像素）
+    artPileX: [139, 219, 339, 430, 526, 611, 690, 795],   // 桩的 x（个数要 ≥ piles，不够就退回色块排法）
+    artPileY: 140,                                         // 桩的 y
+    artBayX:  [130, 214, 346, 435, 524, 614, 701, 790],   // 每根桩前面那个车位的中心 x（车停这里）
+    artBayY:  198                                          // 车位中心 y
   }
 };

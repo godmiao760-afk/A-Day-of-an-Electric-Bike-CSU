@@ -8,8 +8,20 @@
 const ASSETS = {
   images: {
     //  key            宽   高   占位色      有图片了吗
-    dorm:         { w: 1536, h: 1024, color: 0x365a32, file: true,
+    cover:        { w: 960, h: 540, color: 0x14301a, file: true,
+      path: 'assets/img/cover/cover.png' }, // 开始画面封面（1396×926，标题字已画在图里）
+    dorm:        { w: 1536, h: 1024, color: 0x365a32, file: true,
       path: 'assets/img/background/dorm.png' }, // 宿舍车棚背景
+    // 其它场景背景（1536×1024 俯视图）
+    bg_ride_inside:  { w: 1536, h: 1024, color: 0x166534, file: true, path: 'assets/img/background/stadium_clear.png' },      // 校内骑行两侧：体育场
+    bg_ride_outside: { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/bridge_clear.png' },       // 校外骑行两侧：过江桥
+    bg_traffic:      { w: 1536, h: 1024, color: 0x1e293b, file: true, path: 'assets/img/background/traffic_scene_clear.png' }, // 校门口选路线：交警路口
+    bg_park:         { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/parking_compact_day.png' }, // 教学楼车棚
+    bg_park_clear:   { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/parking_clear_day.png' },   // 备用：白天车棚
+    bg_charge:       { w: 1536, h: 1024, color: 0x0b1026, file: true, path: 'assets/img/background/charging_bays_compact_night.png' }, // 夜晚充电区
+    bg_charge_day:   { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/charging_bays_clear.png' }, // 备用：白天充电区
+    bg_police:       { w: 1536, h: 1024, color: 0x1e3a8a, file: true, path: 'assets/img/background/police_station.png' },     // 派出所结局背景
+    ui_controls_panel: { w: 1164, h: 138, color: 0x000000, file: true, path: 'assets/img/ui/controls_panel_blank.png' },    // 操作说明底板
     player:       { w: 32, h: 32,  color: 0x3b82f6, file: false }, // 其他场景的步行占位图
     // 找车步行：前 / 后 / 左 / 右各 3 帧（342×512），另有戴头盔版。占位帧与原图同尺寸，缺帧时不会跳变缩放。
     player_walk_front_1: { w: 342, h: 512, color: 0x3b82f6, file: true, path: 'assets/img/character/player_walk_frames/walk_front_01.png' },
@@ -66,6 +78,19 @@ const ASSETS = {
     // 主角推车（侧面，扶车最后一帧：人扶着立起来的车）：车棚推车、晚上找桩
     pusher:        { w: 40, h: 56, color: 0x93c5fd, file: true, path: 'assets/img/character/scooter-lift/6.png' },
     pusher_helmet: { w: 40, h: 56, color: 0x93c5fd, file: true, path: 'assets/img/character/scooter-lift/6_helmet.png' },
+    // 主角推车走路：左 / 右各 3 帧（342×512），另有戴头盔版；有图时车棚推车、晚上找桩都用它播动画
+    push_left_1:  { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_left_01.png' },
+    push_left_2:  { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_left_02.png' },
+    push_left_3:  { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_left_03.png' },
+    push_right_1: { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_right_01.png' },
+    push_right_2: { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_right_02.png' },
+    push_right_3: { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_right_03.png' },
+    push_left_1_helmet:  { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_left_01_helmet.png' },
+    push_left_2_helmet:  { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_left_02_helmet.png' },
+    push_left_3_helmet:  { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_left_03_helmet.png' },
+    push_right_1_helmet: { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_right_01_helmet.png' },
+    push_right_2_helmet: { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_right_02_helmet.png' },
+    push_right_3_helmet: { w: 342, h: 512, color: 0x93c5fd, file: true, path: 'assets/img/character/player_push_frames/push_right_03_helmet.png' },
     bike:         { w: 24, h: 48, color: 0xfacc15, file: true,
       path: 'assets/img/vehical/protagonist.png' }, // 自己的车（车棚停好后）
     bike_other:   { w: 24, h: 48, color: 0x9ca3af, file: false }, // 已由 dorm_bike_1~7 代替
@@ -103,7 +128,14 @@ const ASSETS = {
     walker_girl_right_1: { w: 342, h: 512, color: 0xa855f7, file: true, path: 'assets/img/character/girl_walker/walk-right-1.png' },
     walker_girl_right_2: { w: 342, h: 512, color: 0xa855f7, file: true, path: 'assets/img/character/girl_walker/walk-right-2.png' },
     walker_girl_right_3: { w: 342, h: 512, color: 0xa855f7, file: true, path: 'assets/img/character/girl_walker/walk-right-3.png' },
-    npc_bus:      { w: 64, h: 140, color: 0x16a34a, file: false }, // 校车
+    npc_bus:      { w: 64, h: 140, color: 0x16a34a, file: true,
+      path: 'assets/img/vehical/school_bus_up.png' }, // 校车（原图车头朝右，已转成朝上）
+    npc_cart:     { w: 64, h: 140, color: 0x16a34a, file: true,
+      path: 'assets/img/vehical/watering_cart_up.png' }, // 洒水车（和校车一样挡路，已转成朝上）
+    npc_bus_2:    { w: 64, h: 140, color: 0x16a34a, file: true,
+      path: 'assets/img/vehical/school_bus_2_up.png' }, // 校车款式 2（school_bus_1 抠掉假透明格子、转成朝上）
+    npc_cart_2:   { w: 64, h: 140, color: 0x16a34a, file: true,
+      path: 'assets/img/vehical/watering_cart_2_up.png' }, // 洒水车款式 2（已转成朝上）
     pile:         { w: 32, h: 40,  color: 0x06b6d4, file: false }, // 充电桩
     slot:         { w: 32, h: 60,  color: 0xffffff, file: false, outline: true }, // 空车位
     road:         { w: 64, h: 64,  color: 0x374151, file: false }, // 路面
@@ -111,16 +143,33 @@ const ASSETS = {
     grass:        { w: 64, h: 64,  color: 0x166534, file: false }, // 草地
     building:     { w: 64, h: 64,  color: 0x7f1d1d, file: false }, // 楼（宿舍/教学楼）
     rider_carry:  { w: 32, h: 64,  color: 0x1d4ed8, file: false }, // 主角骑车载人（没图时沿用 rider）
-    npc_car:      { w: 56, h: 100, color: 0x64748b, file: false }, // 汽车（校外）
-    police:       { w: 32, h: 32,  color: 0x1e3a8a, file: false }, // 交警
+    npc_car:      { w: 56, h: 100, color: 0x64748b, file: true,
+      path: 'assets/img/vehical/car_8_up.png' },  // 汽车（校外）：红色小轿车（vehical/8.png 转成车头朝上）
+    npc_car_2:    { w: 56, h: 100, color: 0x64748b, file: true,
+      path: 'assets/img/vehical/car_11_up.png' }, // 蓝色小轿车（vehical/11.png 转成朝上）
+    police:       { w: 32, h: 32,  color: 0x1e3a8a, file: true,
+      path: 'assets/img/character/police/bat_bottom_01.png' }, // 交警（静止帧，342×512）
+    // 交警挥指挥棒逐帧（342×512）：低位 3 帧 + 高位 3 帧，骑行检查点循环播放
+    police_bottom_1: { w: 342, h: 512, color: 0x1e3a8a, file: true, path: 'assets/img/character/police/bat_bottom_01.png' },
+    police_bottom_2: { w: 342, h: 512, color: 0x1e3a8a, file: true, path: 'assets/img/character/police/bat_bottom_02.png' },
+    police_bottom_3: { w: 342, h: 512, color: 0x1e3a8a, file: true, path: 'assets/img/character/police/bat_bottom_03.png' },
+    police_top_1:    { w: 342, h: 512, color: 0x1e3a8a, file: true, path: 'assets/img/character/police/bat_top_01.png' },
+    police_top_2:    { w: 342, h: 512, color: 0x1e3a8a, file: true, path: 'assets/img/character/police/bat_top_02.png' },
+    police_top_3:    { w: 342, h: 512, color: 0x1e3a8a, file: true, path: 'assets/img/character/police/bat_top_03.png' },
     barrier:      { w: 400, h: 16, color: 0xdc2626, file: false }, // 检查点路障
-    // v2 结局图（Ending 场景，320×240）
-    end_perfect:  { w: 320, h: 240, color: 0x16a34a, file: false }, // 完美：欢呼
-    end_pass:     { w: 320, h: 240, color: 0x2563eb, file: false }, // 合格
-    end_fail:     { w: 320, h: 240, color: 0x6b7280, file: false }, // 不合格：垂头丧气
-    end_police:   { w: 320, h: 240, color: 0x1e3a8a, file: false }, // 派出所
-    end_faint:    { w: 320, h: 240, color: 0x7c2d12, file: false }, // 昏倒
-    end_broke:    { w: 320, h: 240, color: 0x991b1b, file: false }  // 跪地嚎啕大哭
+    // v2 结局图（Ending 场景）：真图是 1536×1024 整幅插画，Ending 缩成插画卡 + 压暗铺满当背景；没图时 320×240 色块
+    end_perfect:  { w: 320, h: 240, color: 0x16a34a, file: true,
+      path: 'assets/img/ending-backgrounds/perfect_ending.png' },        // 完美：捧着花笑
+    end_pass:     { w: 320, h: 240, color: 0x2563eb, file: true,
+      path: 'assets/img/ending-backgrounds/qualified_ending.png' },      // 合格：教室里坐着
+    end_fail:     { w: 320, h: 240, color: 0x6b7280, file: true,
+      path: 'assets/img/ending-backgrounds/unqualified_ending.png' },    // 不合格：门口被老师瞪
+    end_police:   { w: 320, h: 240, color: 0x1e3a8a, file: true,
+      path: 'assets/img/ending-backgrounds/police_station_ending.png' }, // 派出所：戴手铐
+    end_faint:    { w: 320, h: 240, color: 0x7c2d12, file: true,
+      path: 'assets/img/ending-backgrounds/collapsed_ending.png' },      // 昏倒：校医院挂葡萄糖
+    end_broke:    { w: 320, h: 240, color: 0x991b1b, file: true,
+      path: 'assets/img/ending-backgrounds/begging_ending.png' }         // 身无分文：跪地捧碗
   },
   // 音效放进 assets/sfx/，mp3 格式。有了就改成 true。
   sounds: {

@@ -41,6 +41,28 @@ const UI = {
     return obj;
   },
 
+  // 推车走路逐帧（左 / 右各 3 帧，另有头盔版）；d 是 UI.dir 的方向，不动时停在第 2 帧。
+  // 没有推车逐帧图时返回 false，场景继续用 pusher 单图
+  pushWalk(scene, obj, d) {
+    if (!UI.hasArt('push_right_1')) return false;
+    for (const side of ['left', 'right']) {
+      for (const tail of ['', '_helmet']) {
+        const key = 'push_walk_' + side + tail;
+        if (scene.anims.exists(key) || (tail && !UI.hasArt('push_' + side + '_1' + tail))) continue;
+        scene.anims.create({ key,
+          frames: [1, 2, 3, 2].map(n => ({ key: 'push_' + side + '_' + n + tail })),
+          frameRate: CONFIG.findCar.walkFrameRate, repeat: -1   // 和步行同一帧率
+        });
+      }
+    }
+    if (d.x) obj._pushSide = d.x < 0 ? 'left' : 'right';
+    const side = obj._pushSide || 'right';
+    const tail = GameState.helmetOn && scene.anims.exists('push_walk_' + side + '_helmet') ? '_helmet' : '';
+    if (d.x || d.y) obj.anims.play('push_walk_' + side + tail, true);
+    else { obj.anims.stop(); obj.setTexture('push_' + side + '_2' + tail); }
+    return true;
+  },
+
   // 455 → "07:35"
   fmt(clock) {
     const m = Math.floor(clock);

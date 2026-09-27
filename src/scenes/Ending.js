@@ -18,11 +18,32 @@ class Ending extends Phaser.Scene {
     const color = { perfect: '#86efac', pass: '#93c5fd', fail: '#f87171' }[this.key] || '#fbbf24';
 
     // 隐藏结局用深红底，正常结局用深蓝底
-    this.add.rectangle(0, 0, 960, 540, hidden ? 0x1f0a0a : 0x0f172a).setOrigin(0);
+    const base = hidden ? 0x1f0a0a : 0x0f172a;
+    this.add.rectangle(0, 0, 960, 540, base).setOrigin(0);
+    const endKey = 'end_' + this.key;
+    const hasEnd = UI.hasArt(endKey);
+    // 背景：有结局图就用它铺满（派出所没结局图时退回 bg_police），模糊 + 用底色压暗，让中间的插画卡和文字清楚
+    const bgKey = hasEnd ? endKey : (this.key === 'police' && UI.hasArt('bg_police') ? 'bg_police' : null);
+    if (bgKey) {
+      const bg = this.add.image(480, 270, bgKey);
+      bg.setScale(Math.max(960 / bg.width, 540 / bg.height));   // cover：按比例铺满，多的上下裁掉
+      if (bg.preFX) bg.preFX.addBlur(1, 2, 2, 1.2);              // WebGL 才有模糊，Canvas 下跳过
+      this.add.rectangle(0, 0, 960, 540, base, 0.72).setOrigin(0);
+    }
 
-    // 结局图：从小弹到正常大小
-    const img = this.add.image(480, 170, 'end_' + this.key).setScale(0.6).setAlpha(0);
-    this.tweens.add({ targets: img, scale: 1, alpha: 1, duration: 500, ease: 'Back.Out' });
+    // 结局图：从小弹到正常大小。真图（1536×1024）缩成 378×252 的插画卡加描边；没图时是 320×240 色块
+    const card = this.add.container(480, hasEnd ? 156 : 170).setScale(0.6).setAlpha(0);
+    const img = this.add.image(0, 0, endKey);
+    if (hasEnd) {
+      img.setScale(252 / img.height);
+      const w = img.displayWidth, h = img.displayHeight;
+      card.add(this.add.rectangle(6, 8, w + 12, h + 12, 0x000000, 0.45));   // 投影
+      card.add(this.add.rectangle(0, 0, w + 12, h + 12, 0xfef3c7).setStrokeStyle(2, 0x000000, 0.35)); // 米色相框
+    }
+    card.add(img);
+    this.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 500, ease: 'Back.Out' });
+    // 派出所有背景图、但还没有结局图时，不显示占位色块
+    if (!hasEnd && bgKey) card.setVisible(false);
 
     const t = this.add.text(480, 318, E.title, UI.style(34, color)).setOrigin(0.5).setAlpha(0);
     this.tweens.add({ targets: t, alpha: 1, duration: 400, delay: 400 });

@@ -17,8 +17,14 @@ class Park extends Phaser.Scene {
     this.physics.world.setBounds(0, 70, W, H - 70);
     this.cameras.main.setBounds(0, 0, W, H);
 
-    this.add.tileSprite(0, 0, W, H, 'road').setOrigin(0);
-    this.add.tileSprite(0, 0, W, 70, 'building').setOrigin(0);
+    if (UI.hasArt('bg_park')) {
+      // 有真图：按宽铺满、保持比例，底对齐（车棚空地铺满画面），顶上加一条暗色标题栏
+      this.add.image(0, H, 'bg_park').setOrigin(0, 1).setDisplaySize(W, W * 1024 / 1536);
+      this.add.rectangle(0, 0, W, 70, 0x000000, 0.55).setOrigin(0);
+    } else {
+      this.add.tileSprite(0, 0, W, H, 'road').setOrigin(0);
+      this.add.tileSprite(0, 0, W, 70, 'building').setOrigin(0);
+    }
     this.add.text(W / 2, 35, '教学楼 · 车棚', UI.style(26, '#fecaca')).setOrigin(0.5);
     // 教学楼门口（左侧入口）
     this.add.text(20, 470, '← 入口', UI.style(18, '#9ca3af'));
@@ -75,6 +81,9 @@ class Park extends Phaser.Scene {
     const look = this.pushing ? P.pusher : P.rider;
     const key = this.pushing ? 'pusher' : 'rider';
     if (UI.hasArt(key)) UI.look(this.player, key, look.width, look.height);
+    // 推车有逐帧图：换成推车走路图（左右两套，不用翻转）
+    this.pushFrames = this.pushing && UI.pushWalk(this, this.player, { x: 1, y: 0 });
+    if (this.pushFrames) this.player.setDisplaySize(P.pushWalk.width, P.pushWalk.height);
     this.player.setCollideWorldBounds(true);
     // 碰撞框小一点，方便钻进车位；动态体要换算回纹理像素
     const bw = look.bodyWidth / this.player.scaleX, bh = look.bodyHeight / this.player.scaleY;
@@ -104,13 +113,18 @@ class Park extends Phaser.Scene {
     UI.updateHud(this);
     const f = UI.pressedF(this);
     if (UI.pressedE(this) && !this.done) { this.player.setVelocity(0); UI.backpack(this); }
-    if (UI.blocked(this) || this.done) { this.player.setVelocity(0); return; }
+    if (UI.blocked(this) || this.done) {
+      this.player.setVelocity(0);
+      if (this.pushFrames && !this.done) UI.pushWalk(this, this.player, { x: 0, y: 0 });   // 停下时站着不动
+      return;
+    }
 
     // ---- 移动 ----
     const d = UI.dir(this);
     const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(this.speed);
     this.player.setVelocity(v.x, v.y);
-    if (d.x || d.y) this.turn(d.x, d.y);
+    if (this.pushFrames) UI.pushWalk(this, this.player, d);
+    else if (d.x || d.y) this.turn(d.x, d.y);
 
     // ---- 旁边有倒着的车：优先扶起来 ----
     const down = this.nearestFallen(50);
@@ -149,6 +163,7 @@ class Park extends Phaser.Scene {
 
   // 朝向：骑车按方向转（车头朝上的图 +90°）；推车的侧视图不转，往左走就翻过来（原图车头朝右）
   turn(x, y) {
+    if (this.pushFrames) return;   // 推车逐帧图自带左右朝向
     if (this.pushing && UI.hasArt('pusher')) { if (x) this.player.setFlipX(x < 0); return; }
     this.player.setAngle(Phaser.Math.RadToDeg(Math.atan2(y, x)) + 90);
   }
@@ -162,6 +177,7 @@ class Park extends Phaser.Scene {
 
     this.player.setVelocity(0);
     this.player.disableBody();   // 停好了不再碰撞（换图后碰撞框会跟着缩放变大，会被旁边的车挤开）
+    this.player.anims.stop();    // 推车走路动画停掉，不然会把停好的车图换回去
     this.player.setTexture('bike').setAngle(0).setFlipX(false);
     // 有真图：和车棚里别人的车一样大
     if (UI.hasArt('bike')) this.player.setDisplaySize(CONFIG.park.bike.width, CONFIG.park.bike.height);

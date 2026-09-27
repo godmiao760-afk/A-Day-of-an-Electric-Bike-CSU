@@ -33,6 +33,7 @@ src/state.js            A   GameState、newGame()、nextDay()、结局判定等�
 src/ui.js               A   公用工具（见第 7 节）
 src/main.js             A   创建游戏；GAME_SCENES 场景注册表；DEBUG_START / DEBUG_DATA / DEBUG_STATE 调试开关
 src/scenes/Boot.js      A   加载素材、生成色块
+src/scenes/Title.js     A   开始画面（封面图 cover + "按 F 开始"）
 src/scenes/Intro.js     A   "第 N 天"字幕（揭晓昨晚充电结果、累计迟到）
 src/scenes/FindCar.js   B   场景1 找车
 src/scenes/Ride.js      A   场景2 骑行
@@ -115,7 +116,7 @@ UI.rand(arrOrStr)             // 数组随机取一个
 ## 8. 场景流程
 
 ```
-Boot → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ 到达 → Park {pushing:false} ─┐
+Boot → Title → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ 到达 → Park {pushing:false} ─┐
                                                     └─ 没电 → Park {pushing:true}  ─┤
    Class{morning} ←─────────────────────────────────────────────────────────────────┘
    → Node{noon} → Class{afternoon} ─┬─ 第 totalDays 天 → Ending{ key: finalEndingKey() }
@@ -138,6 +139,7 @@ Boot → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ 到达 → 
 - **饥饿**：每段课 −`perClass`，过夜 −`overnight`；饿了 FindCar / Park / Charge / Ride 移动都变慢；≤ 0 进昏倒结局。
 - **钱**：每天早上 +`allowance`；充电扫码 −`money.charge`，钱不够 → chargeResult='noMoney'；≤ 0 进没钱结局。
 
+- **Title**（Title.js）：开始画面。有 `cover` 图就按比例铺满 960×540（上下裁掉一点，标题字已画在图里），慢慢推近再拉远；没图显示 `LINES.title.name` 文字标题。底部闪烁 `LINES.title.start`，按 F 或点击 → Intro。Boot 里已经调过 `newGame()`。
 - **Intro**：第 1 天用 `LINES.intro.day1`；之后电量 < 40 用 `low`，否则 `ok`。第 2 天起先查隐藏结局；昨晚插上了桩，开头先揭晓 `charge.full` / `charge.unplugged`（结果由 Result 通过 `{ lastCharge }` 传进来，因为 nextDay() 已把 chargeResult 清掉）。多一行 `intro.lateCount`，最后一天加 `intro.lastDay`。
 - **FindCar**：7:35 开始。车阵中有一辆是自己的（位置随机，左右被夹住）。按 F 查看，认出后变黄；要先挪开一辆邻车（每辆 +`moveCarMinutes` 分钟）才能解锁。越近"滴滴"越快 + 右上角信号格。无失败条件。
   - **多米诺**：挪开邻车时按 `findCar.dominoChance` 带倒同一排，往远离自己车的方向（最多 `dominoMax` 辆，遇到挪开的 / 倒着的 / 排尾停）；走路蹭到不触发。靠近按 F 扶起（每辆 +`liftMinutes`），**全部扶起才能解锁**。文案复用 `LINES.park.domino / lift / liftFirst / liftHint / liftedAll`。
@@ -150,7 +152,7 @@ Boot → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ 到达 → 
 - **Class**：上午课 late 为 true → lateCount+1；下午课 clock > `afternoonClass` → latePM=true、lateCount+1。显示到教室时间、`classScene.lateTotal`；扣 `perClass` 饥饿。上午课结束时钟跳到 12:00；下午课结束扣 `dayDrain` 电，时钟跳到 17:30。之后：隐藏结局 > 最后一天下午 → 最终结局 > 照常进 Node。
 - **Charge**：到 23:00 门禁。桩状态随机：被占 / 坏了 / 扫码失败（第一次必失败，之后按概率成功）/ 空闲。插上就回宿舍（没有"守着"了）：`gambleWinRate` 充满（'full'），否则只 +`unpluggedGain`%（'unplugged'）；当场只说 `charge.plugged`，HUD 冻住不露结果，第二天 Intro 揭晓。门禁前没插上 → 'none'。
 - **Result**（今日评价，不影响最终结局）：充上电 = battery ≥ `chargedThreshold`。评价（`LINES.endings`）：准时+充上「难得顺利的一天」；准时+没充上「明天早上见分晓」；迟到+充上「至少明天有电了」；迟到+没充上「明天还得推车」（"准时 / 迟到"只看上午）。多两行：下午准时 / 迟到、累计迟到次数。F 开始第二天（保留电量、钱、饥饿、背包、lateCount、runs；过夜饿 `overnight`，到账 `allowance`），R 重新开始。
-- **Ending**（Ending.js）：`init(data)` 读 `data.key`（默认 'pass'）。显示 `end_<key>` 图（没图用色块）、`LINES.finalEnding[key]` 的 title / text、统计 `LINES.endingUi.stats`（第几天、累计迟到、硬闯成功次数、余额）。1.2 秒后按 F 或点击 → `newGame()` → Intro。
+- **Ending**（Ending.js）：`init(data)` 读 `data.key`（默认 'pass'）。显示 `end_<key>` 图（真图是 `assets/img/ending-backgrounds/` 下 1536×1024 整幅插画：同一张图模糊压暗铺满当背景，中间缩成 378×252 带框插画卡；没图用 320×240 色块，派出所没图时退回 `bg_police` 当背景）、`LINES.finalEnding[key]` 的 title / text、统计 `LINES.endingUi.stats`（第几天、累计迟到、硬闯成功次数、余额）。1.2 秒后按 F 或点击 → `newGame()` → Intro。
 
 **v2 新增的数值 / 文案**（调数值、改文字时找这些）：
 - CONFIG：`afternoonClass`、`ending.{totalDays, passMaxLate}`、`money.lowWarn`、`hunger.faintWarn`、`places.*.minutes`、`police.{runCatchBase, runCatchStep, runCatchMax}`、`findCar.{dominoChance, dominoMax, dominoDelayMs, liftMinutes}`、`ride.{followGap, laneChangeSpeed, wrongSameLane, runProtectMs, oneWay}`；`charge.watchPerMinute` 已删。

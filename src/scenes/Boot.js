@@ -57,7 +57,7 @@ class Boot extends Phaser.Scene {
       Object.assign(GameState, DEBUG_STATE || {});
       this.scene.start(DEBUG_START, DEBUG_DATA || {});
     } else {
-      this.scene.start('Intro');
+      this.scene.start('Title');   // 先进开始画面，按 F 再进 Intro
     }
   }
 }

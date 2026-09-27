@@ -14,6 +14,11 @@ class NodeScene extends Phaser.Scene {
     const titles = { gate: LINES.gate.title, noon: LINES.meals.noonTitle, evening: LINES.meals.eveningTitle };
     const bg = { gate: 0x1e293b, noon: 0x3f2d0f, evening: 0x2a1a3a }[this.kind];
     this.add.rectangle(0, 0, 960, 540, bg).setOrigin(0);
+    // 校门口有真图：交警路口背景（按宽铺满、竖直居中），压暗一点让标题清楚
+    if (this.kind === 'gate' && UI.hasArt('bg_traffic')) {
+      this.add.image(480, 270, 'bg_traffic').setDisplaySize(960, 640);
+      this.add.rectangle(0, 0, 960, 540, 0x000000, 0.35).setOrigin(0);
+    }
     this.add.text(480, 60, titles[this.kind], UI.style(34, '#fde68a')).setOrigin(0.5);
     UI.createClock(this);
     UI.createHud(this, false);

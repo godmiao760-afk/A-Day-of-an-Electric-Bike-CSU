@@ -51,8 +51,14 @@ class Ride extends Phaser.Scene {
     // ---- 画地图 ----
     // 草地和路面只做一屏大小，跟着镜头滚动纹理（避免生成超长贴图）
     const sideTex = s.route === 'outside' ? 'road' : 'grass';   // 校外两边是街道
-    this.bgGrass = this.add.tileSprite(0, 0, 960, 540, sideTex).setOrigin(0).setScrollFactor(0);
-    if (s.route === 'outside') this.bgGrass.setTint(0x9ca3af);
+    const bgKey = s.route === 'outside' ? 'bg_ride_outside' : 'bg_ride_inside';   // 有真图：校外过江桥 / 校内体育场
+    if (UI.hasArt(bgKey)) {
+      this.bgGrass = this.add.tileSprite(0, 0, 960, 540, bgKey).setOrigin(0).setScrollFactor(0);
+      this.bgGrass.setTileScale(960 / this.bgGrass.frame.width);   // 横向铺满一屏，竖向重复
+    } else {
+      this.bgGrass = this.add.tileSprite(0, 0, 960, 540, sideTex).setOrigin(0).setScrollFactor(0);
+      if (s.route === 'outside') this.bgGrass.setTint(0x9ca3af);
+    }
     this.bgRoad = this.add.tileSprite(this.ROAD_L, 0, this.ROAD_R - this.ROAD_L, 540, 'road')
       .setOrigin(0).setScrollFactor(0);
     if (this.route.slope) {
@@ -92,8 +98,15 @@ class Ride extends Phaser.Scene {
     this.barrier = null;
     if (this.policeY) {
       this.barrier = this.add.image(480, this.policeY, 'barrier').setDepth(5);
-      this.add.image(this.ROAD_R - 30, this.policeY - 30, 'police').setDepth(6);
-      this.add.image(this.ROAD_L + 30, this.policeY - 30, 'police').setDepth(6);
+      // 路两边各站一个交警：有真图就挥指挥棒（右边的翻过来，棒子都朝路中间），两人错开节奏
+      const wave = this.policeAnim();
+      [this.ROAD_R - 30, this.ROAD_L + 30].forEach((x, i) => {
+        const cop = this.add.sprite(x, this.policeY - 30, 'police').setDepth(6);
+        if (!UI.hasArt('police')) return;
+        const S = CONFIG.ride.sizes.police;
+        cop.setDisplaySize(S.width, S.height).setFlipX(i === 0);
+        if (wave) cop.anims.play({ key: 'police_wave', startFrame: i * 3 });
+      });
       this.add.text(this.ROAD_R + 20, this.policeY - 20, '交警检查', UI.style(22, '#93c5fd'));
     }
 
@@ -137,7 +150,8 @@ class Ride extends Phaser.Scene {
 
   update(time, delta) {
     // 背景纹理跟随镜头
-    this.bgGrass.tilePositionY = this.bgRoad.tilePositionY = this.cameras.main.scrollY;
+    this.bgRoad.tilePositionY = this.cameras.main.scrollY;
+    this.bgGrass.tilePositionY = this.cameras.main.scrollY / this.bgGrass.tileScaleY;   // 缩放过的纹理按纹理像素滚
     UI.tickClock(this, delta);
     UI.updateHud(this);
     const f = UI.pressedF(this);
@@ -286,6 +300,16 @@ class Ride extends Phaser.Scene {
   }
 
   // 行人左右走的动画（男生 / 女生各一套）；缺图就不建，用 npc_walker 色块
+  // 交警挥棒动画（低位 3 帧 + 高位 3 帧循环），没有逐帧图返回 false
+  policeAnim() {
+    if (!UI.hasArt('police_top_1')) return false;
+    if (!this.anims.exists('police_wave')) this.anims.create({ key: 'police_wave',
+      frames: ['bottom_1', 'bottom_2', 'bottom_3', 'top_1', 'top_2', 'top_3'].map(n => ({ key: 'police_' + n })),
+      frameRate: CONFIG.ride.policeFrameRate, repeat: -1
+    });
+    return true;
+  }
+
   createWalkerAnims() {
     this.walkerKinds = [];
     for (const who of ['boy', 'girl']) {
@@ -344,11 +368,15 @@ class Ride extends Phaser.Scene {
       o.setVelocityX(vx);
       o.setData('type', type).setData('lane', null).setData('speed', vx);
     } else if (type === 'car') {
-      // 汽车（校外）：体积大，同向慢慢开，挡路
-      o = this.addCar(type, 'npc_car', lane, top - 120, -90);
+      // 汽车（校外）：体积大，同向慢慢开，挡路；两款小轿车里随机挑一辆有图的
+      const cars = ['npc_car', 'npc_car_2'].filter(k => UI.hasArt(k));
+      o = this.addCar(type, cars.length ? Phaser.Utils.Array.GetRandom(cars) : 'npc_car', lane, top - 120, -90);
     } else {
       // 校车：又大又慢，挡在前面
-      o = this.addCar('bus', 'npc_bus', lane, top - 160, -50);
+      // 大车：校车 / 洒水车各两款，有图的里面随机挑一辆（都没图就用 npc_bus 色块）
+      const bigs = ['npc_bus', 'npc_bus_2', 'npc_cart', 'npc_cart_2'].filter(k => UI.hasArt(k));
+      const big = bigs.length ? Phaser.Utils.Array.GetRandom(bigs) : 'npc_bus';
+      o = this.addCar('bus', big, lane, top - 160, -50);
     }
     if (!o) return;
     this.sizeNpc(o, type);
