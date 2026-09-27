@@ -102,15 +102,15 @@ class FindCar extends Phaser.Scene {
     this.updateWalkAnimation(d);
     this.player.setDepth(this.player.y);
 
-    // ---- 找车提示：越近滴得越快，信号格越多 ----
+    // ---- 找车提示：固定频率，距离只改变音量和信号格 ----
     const dist = Phaser.Math.Distance.BetweenPoints(this.player, this.myBike);
     const C = CONFIG.findCar;
     const level = Phaser.Math.Clamp(5 - Math.floor(dist / C.signalStep), 1, 5);
     this.signal.setText(LINES.findCar.signal + '▮'.repeat(level) + '▯'.repeat(5 - level));
     if (time > this.nextBeep) {
-      const beepVolume = Phaser.Math.Clamp(1 - dist / (C.signalStep * 5), 0.2, 1);
+      const beepVolume = Phaser.Math.Clamp(1 - dist / (C.signalStep * 5), 0.05, 1);
       UI.sfx(this, 'beep', { volume: beepVolume });
-      this.nextBeep = time + Phaser.Math.Clamp(dist * C.beepDistanceFactor, C.beepMin, C.beepMax);
+      this.nextBeep = time + 500;
     }
 
     // ---- 旁边有倒着的车：优先扶起来 ----
