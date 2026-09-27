@@ -72,6 +72,9 @@ class Ending extends Phaser.Scene {
     if (this.key === 'faint') {
       UI.sfx(this, 'ending_faint_belly');
       this.time.delayedCall(350, () => UI.sfx(this, 'ending_faint'));
+    } else if (this.key === 'broke') {
+      UI.sfx(this, endingSfx);
+      this.time.delayedCall(500, () => UI.sfx(this, 'ending_broke_cry'));
     } else if (endingSfx) {
       UI.sfx(this, endingSfx);
     }

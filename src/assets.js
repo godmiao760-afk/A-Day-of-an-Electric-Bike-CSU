@@ -197,6 +197,7 @@ const ASSETS = {
     ending_faint_belly: { file: true, path: 'assets/sfx/肚子咕咕叫.wav' },
     ending_faint: { file: true, path: 'assets/sfx/饿晕倒.mp3' },
     ending_police: { file: true, path: 'assets/sfx/镣铐声_派出所.wav' },
-    ending_broke: { file: true, path: 'assets/sfx/乞讨.mp3' }
+    ending_broke: { file: true, path: 'assets/sfx/乞讨.mp3' },
+    ending_broke_cry: { file: true, path: 'assets/sfx/乞讨大哭.wav' }
   }
 };
