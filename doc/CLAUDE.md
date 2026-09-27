@@ -160,11 +160,7 @@ Boot → Title → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ �
 
 ## 9. 素材约定（C）
 
-<<<<<<< HEAD
-图片默认放 `assets/img/<key>.png`，也可在 `src/assets.js` 使用 `path` 指向项目内的相对路径，然后把 `file` 改成 `true`。`w/h` 为占位图尺寸；实际显示尺寸和碰撞框由场景配置。可选 `crop: { x, y, w, h }` 由 Boot 注册 `trimmed` 帧，用于去除透明留白，不改原图。**车辆类图片车头朝上。** 找车使用独立的 `dorm_*` 和 `player_walk_*` key，其他场景的原有贴图约定保持不变。音效放 `assets/sfx/<key>.mp3`，同样在 assets.js 里改 true。
-=======
-图片放 `assets/img/<key>.png`，然后在 `src/assets.js` 把对应的 `file` 改成 `true`。**车辆类图片车头朝上。** 尺寸尽量与 assets.js 里一致（不一致也能用，但碰撞框会跟着变）。音效放 `assets/sfx/<key>.mp3`，同样在 assets.js 里改 true。结局图 `end_perfect / end_pass / end_fail / end_police / end_faint / end_broke`（320×240），没图时用色块。
->>>>>>> de6766fa2e9be042dc018fef08d08804cc4c61f9
+图片默认放 `assets/img/<key>.png`?也可在 `src/assets.js` 使用 `path` 指向项目内的相对路径，然后把 `file` 改成 `true`。`w/h` 为占位图尺寸；实际显示尺寸和碰撞框由场景配置。可选 `crop: { x, y, w, h }` 由 Boot 注册 `trimmed` 帧，用于去除透明留白，不改原图。**车辆类图片车头朝上。** 找车使用独立的 `dorm_*` 和 `player_walk_*` key?其他场景的原有贴图约定保持不变。音效默认放 `assets/sfx/<key>.mp3`?也可在 `assets.js` 里使用 `{ file: true, path: 'assets/sfx/文件名.ext' }` 指定 WAV、M4A 等实际文件。结局图 `end_perfect / end_pass / end_fail / end_police / end_faint / end_broke`（320×240）?没图时用色块。
 
 ## 10. 给 AI 的工作规则
 
