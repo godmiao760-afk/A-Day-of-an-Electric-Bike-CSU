@@ -67,9 +67,10 @@ class FindCar extends Phaser.Scene {
     })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
     this.nextBeep = 0;
     this.done = false;
-    this.add.text(12, 510, LINES.findCar.controls, UI.style(14, '#ffffff', {
+    const ctl = this.add.text(12, 510, LINES.findCar.controls, UI.style(14, '#ffffff', {
       backgroundColor: 'rgba(0,0,0,0.65)', padding: { x: 8, y: 3 }
     })).setScrollFactor(0).setDepth(1000);
+    if (UI.backText(this, ctl)) ctl.setPosition(18, 504);   // 操作说明垫上文本框底板
 
     UI.say(this, isHungry() ? LINES.hungry : LINES.findCar.start, this.player);
     // 只提示背包在哪，不提醒要戴头盔
