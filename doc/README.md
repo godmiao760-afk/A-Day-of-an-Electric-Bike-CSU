@@ -13,6 +13,10 @@
 
 ## 操作
 
+### 网页发布
+
+原始素材保留在 `assets/img`、`assets/sfx`。运行 `python tools/prepare_web_assets.py` 生成保留尺寸及透明通道的 WebP 图片和 MP3 音效（需 Pillow、imageio-ffmpeg）；再运行 `python tools/stage_web.py`，将 `output/netlify` 部署到 Netlify。Phaser 3.90.0 已放在 `assets/vendor`，页面不再依赖外部 CDN。加载时显示进度，资源超时可使用缺图备用画面。
+
 | 按键 | 作用 |
 |---|---|
 | W A S D | 移动 |

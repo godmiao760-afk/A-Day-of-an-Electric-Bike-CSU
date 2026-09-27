@@ -10,7 +10,7 @@
 
 ## 2. 技术约定（AI 必须遵守）
 
-- 引擎 **Phaser 3.90.0**，CDN 引入（见 index.html）。**只用 Phaser 3 写法**，不要用 Phaser 2/CE 或 Phaser 4 的 API。
+- 引擎 **Phaser 3.90.0**，从站点的 `assets/vendor/` 引入（见 index.html），避免外部 CDN 阻塞。**只用 Phaser 3 写法**，不要用 Phaser 2/CE 或 Phaser 4 的 API。
 - 纯 JavaScript。不用 TypeScript、npm、打包工具、第三方库。
 - 普通 `<script>` 按顺序加载，**不用 import / export**。
 - 全局对象：`CONFIG`、`LINES`、`ASSETS`、`GameState`、`UI`、各场景类、`newGame()`、`nextDay()`。
@@ -159,6 +159,8 @@ Boot → Title → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ �
 - LINES：`intro.{lateCount, lastDay}`、`gate.{rumorInside, rumorOutside}`、`police.{askStop, optStop, optRun, runOk, runOmen}`、`meals.{lastMoney, takes}`、`ride.{oneWaySign, oneWayEnter}`、`classScene.lateTotal`、`charge.plugged`、`faintWarn`、`finalEnding.<key>.{title, text}`、`endingUi.{stats, restart}`。注意 `endings` 是每日评价，`finalEnding` 才是最终结局。
 
 ## 9. 素材约定（C）
+
+网页版通过 `tools/prepare_web_assets.py` 从原图生成 `assets/web/` 的 WebP 图片和 MP3 音效，保留原始素材及图片尺寸，`assets.js` 引用网页版本。生成工具在开发时需要 Pillow 和 imageio-ffmpeg，游戏运行不依赖这些工具。Boot 显示加载进度，单个资源超时后使用已有的缺图回退；加载配置和文案分别放在 CONFIG.loading 和 LINES.loading。
 
 图片默认放 `assets/img/<key>.png`?也可在 `src/assets.js` 使用 `path` 指向项目内的相对路径，然后把 `file` 改成 `true`。`w/h` 为占位图尺寸；实际显示尺寸和碰撞框由场景配置。可选 `crop: { x, y, w, h }` 由 Boot 注册 `trimmed` 帧，用于去除透明留白，不改原图。**车辆类图片车头朝上。** 找车使用独立的 `dorm_*` 和 `player_walk_*` key?其他场景的原有贴图约定保持不变。音效默认放 `assets/sfx/<key>.mp3`?也可在 `assets.js` 里使用 `{ file: true, path: 'assets/sfx/文件名.ext' }` 指定 WAV、M4A 等实际文件。结局图 `end_perfect / end_pass / end_fail / end_police / end_faint / end_broke`（320×240）?没图时用色块。
 

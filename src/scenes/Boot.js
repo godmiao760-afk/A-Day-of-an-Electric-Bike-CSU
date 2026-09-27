@@ -3,6 +3,17 @@ class Boot extends Phaser.Scene {
   constructor() { super('Boot'); }
 
   preload() {
+    // 在线加载期间展示进度；资源超时仍走已有的色块回退。
+    this.load.imageLoadType = 'XHR';
+    this.load.xhr.timeout = CONFIG.loading.timeout;
+    this.load.maxParallelDownloads = CONFIG.loading.parallel;
+    this.add.text(480, 225, LINES.loading.title, { fontSize: '28px', color: '#ffffff' }).setOrigin(0.5);
+    const progress = this.add.text(480, 280, '', { fontSize: '20px', color: '#d5e5ca' }).setOrigin(0.5);
+    const updateProgress = value => progress.setText(LINES.loading.progress.replace('{n}', Math.round(value * 100)));
+    updateProgress(0);
+    this.load.on('progress', updateProgress);
+    this.load.once('loaderror', () => this.add.text(480, 330, LINES.loading.failed, { fontSize: '16px', color: '#e5c99d' }).setOrigin(0.5));
+    document.getElementById('startup-status')?.remove();
     // 只加载 ASSETS 里标记 file: true 的素材
     for (const [key, a] of Object.entries(ASSETS.images)) {
       if (a.file) this.load.image(key, a.path || ('assets/img/' + key + '.png'));
@@ -31,6 +42,8 @@ class Boot extends Phaser.Scene {
         }
         continue;
       }
+      // 让场景识别真正的缺图，使用原有的备用布局。
+      a.file = false;
       const g = this.add.graphics();
       if (a.outline) {
         g.lineStyle(3, a.color, 0.9).strokeRect(2, 2, a.w - 4, a.h - 4);
