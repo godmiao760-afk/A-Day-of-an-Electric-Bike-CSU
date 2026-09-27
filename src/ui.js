@@ -83,7 +83,11 @@ const UI = {
     scene._hud = null;
     scene._sfxInstances = [];
     scene.events.once('shutdown', () => {
-      scene._sfxInstances.forEach(s => { if (s && s.isPlaying) s.stop(); });
+      scene._sfxInstances.forEach(s => {
+        if (!s) return;
+        if (s.isPlaying) s.stop();
+        s.destroy();
+      });
       scene._sfxInstances.length = 0;
     });
     scene.keys = scene.input.keyboard.addKeys('W,A,S,D,F,E,R,UP,DOWN,LEFT,RIGHT');
