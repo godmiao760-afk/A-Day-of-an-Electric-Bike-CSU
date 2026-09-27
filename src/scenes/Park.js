@@ -9,6 +9,7 @@ class Park extends Phaser.Scene {
 
   create() {
     UI.setup(this);
+    UI.sfx(this, 'tow', { loop: true });
     const P = CONFIG.park;
     this.speed = P.rideSpeed * (this.pushing ? P.pushSpeedFactor : 1) * speedMul();   // 饿了更慢
 
@@ -200,7 +201,6 @@ class Park extends Phaser.Scene {
     this.player.setVelocity(0);
     UI.choice(this, L.illegalAsk, [L.illegalYes, L.illegalNo], i => {
       if (i !== 0) return;   // 算了，继续找车位
-      UI.sfx(this, 'tow', { loop: true });
       this.parkHere(this.noPark.centerX, this.noPark.centerY);   // 里面会立刻把 done 设 true
       UI.say(this, L.illegalParked, this.player);
       const toClass = () => UI.fadeTo(this, 'Class', { part: 'morning' });
