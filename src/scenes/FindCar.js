@@ -108,7 +108,8 @@ class FindCar extends Phaser.Scene {
     const level = Phaser.Math.Clamp(5 - Math.floor(dist / C.signalStep), 1, 5);
     this.signal.setText(LINES.findCar.signal + '▮'.repeat(level) + '▯'.repeat(5 - level));
     if (time > this.nextBeep) {
-      UI.sfx(this, 'beep');
+      const beepVolume = Phaser.Math.Clamp(1 - dist / (C.signalStep * 5), 0.2, 1);
+      UI.sfx(this, 'beep', { volume: beepVolume });
       this.nextBeep = time + Phaser.Math.Clamp(dist * C.beepDistanceFactor, C.beepMin, C.beepMax);
     }
 

@@ -81,6 +81,11 @@ const UI = {
     scene._hint = null;
     scene._clock = null;
     scene._hud = null;
+    scene._sfxInstances = [];
+    scene.events.once('shutdown', () => {
+      scene._sfxInstances.forEach(s => { if (s && s.isPlaying) s.stop(); });
+      scene._sfxInstances.length = 0;
+    });
     scene.keys = scene.input.keyboard.addKeys('W,A,S,D,F,E,R,UP,DOWN,LEFT,RIGHT');
     scene.cameras.main.fadeIn(300, 0, 0, 0);
   },
@@ -409,8 +414,18 @@ const UI = {
 
   // ---------- 音效 ----------
   // 有素材就播放 Boot 载入的音频；没有就用合成音顶替
-  sfx(scene, key) {
-    if (scene.cache.audio.exists(key)) { scene.sound.play(key); return; }
+  sfx(scene, key, config) {
+    if (scene.cache.audio.exists(key)) {
+      const sound = scene.sound.add(key, config || {});
+      scene._sfxInstances.push(sound);
+      sound.once('complete', () => {
+        const i = scene._sfxInstances.indexOf(sound);
+        if (i >= 0) scene._sfxInstances.splice(i, 1);
+        sound.destroy();
+      });
+      sound.play();
+      return sound;
+    }
     const presets = {
       beep: [1400, 0.06, 'sine'],
       hit:  [140, 0.18, 'square'],
