@@ -98,13 +98,15 @@ class Ride extends Phaser.Scene {
     }
 
     // ---- 主角 ----
-    this.player = this.physics.add.sprite(this.LANES[1], this.startY, s.passenger ? 'rider_carry' : 'rider');
+    this.player = this.physics.add.sprite(this.LANES[1], this.startY, 'rider');
+    this.setRiderLook();
     this.player.setCollideWorldBounds(true);
-    this.player.body.setSize(24, 48);
     this.player.setDepth(10);
     this.cameras.main.centerOn(480, this.startY - 150);
     this.cameras.main.startFollow(this.player, true, 0, 0.2, 0, 150);  // 主角偏下，多看前方
     this.vy = 0;
+    this.fallImg = null;       // 摔倒 / 扶车时代替主角显示的图
+    this.createWalkerAnims();
 
     // ---- 障碍 ----
     this.npcs = this.physics.add.group();
@@ -114,6 +116,7 @@ class Ride extends Phaser.Scene {
     // ---- 状态 ----
     this.invUntil = 0;
     this.fallen = false;
+    this.getting = false;      // 扶正了、正停着准备骑上去
     this.presses = 0;
     this.ending = false;
     this.warnedLow = false;
@@ -149,11 +152,13 @@ class Ride extends Phaser.Scene {
     const onSlope = p.y > this.slopeTopY && p.y < this.slopeBotY;
 
     // ---- 摔倒：连按 F 扶车 ----
-    if (this.fallen) {
+    if (this.fallen || this.getting) {
       p.setVelocity(0);
-      if (f) {
+      if (f && this.fallen) {
         this.presses++;
-        this.tweens.add({ targets: p, x: p.x + Phaser.Math.Between(-4, 4), duration: 50, yoyo: true });
+        const shake = this.fallImg || p;
+        this.tweens.add({ targets: shake, x: shake.x + Phaser.Math.Between(-4, 4), duration: 50, yoyo: true });
+        this.liftFrame(this.presses);
         UI.hint(this, '连按 F 扶车（' + this.presses + '/' + R.pickupPresses + '）');
         if (this.presses >= R.pickupPresses) this.getUp();
       }
@@ -234,7 +239,7 @@ class Ride extends Phaser.Scene {
       // 被罚了且载着人：同学跑掉，报酬也没了
       if (!r.passed && s.passenger) {
         s.passenger = false;
-        this.player.setTexture('rider');
+        this.setRiderLook();
         UI.say(this, LINES.passenger.fled, this.player);
       }
       this.invUntil = this.time.now + 1500;
@@ -253,6 +258,48 @@ class Ride extends Phaser.Scene {
     this.invUntil = this.time.now + CONFIG.ride.runProtectMs;
     this.tweens.add({ targets: this.player, alpha: 0.3, duration: 150, yoyo: true, repeat: 5,
       onComplete: () => this.player.setAlpha(1) });
+  }
+
+  // ---------- 贴图 ----------
+  // 主角骑车贴图：载人且有 rider_carry 图就用它，否则用 rider（戴头盔自动换版本）；真图按 sizes.rider 缩放
+  setRiderLook() {
+    const p = this.player;
+    const key = GameState.passenger && UI.hasArt('rider_carry') ? 'rider_carry' : 'rider';
+    const S = CONFIG.ride.sizes.rider;
+    if (UI.hasArt(key)) UI.look(p, key, S.width, S.height);
+    else { p._look = null; p.setTexture(GameState.passenger ? 'rider_carry' : 'rider').setScale(1); }
+    this.fitBody(p, S.body);
+  }
+
+  // 碰撞框 = 显示尺寸 × ratio，换算回纹理像素后居中
+  fitBody(o, ratio) {
+    const bw = o.displayWidth * ratio[0] / o.scaleX;
+    const bh = o.displayHeight * ratio[1] / o.scaleY;
+    o.body.setSize(bw, bh).setOffset((o.width - bw) / 2, (o.height - bh) / 2);
+  }
+
+  // 障碍有真图就按 sizes 缩放，然后设碰撞框
+  sizeNpc(o, type) {
+    const S = CONFIG.ride.sizes[type];
+    if (S && UI.hasArt(o.texture.key)) o.setDisplaySize(S.width, S.height);
+    this.fitBody(o, S ? S.body : [0.8, 0.85]);
+  }
+
+  // 行人左右走的动画（男生 / 女生各一套）；缺图就不建，用 npc_walker 色块
+  createWalkerAnims() {
+    this.walkerKinds = [];
+    for (const who of ['boy', 'girl']) {
+      if (!UI.hasArt('walker_' + who + '_left_1')) continue;
+      this.walkerKinds.push(who);
+      for (const side of ['left', 'right']) {
+        const key = 'ride_walker_' + who + '_' + side;
+        if (this.anims.exists(key)) continue;
+        this.anims.create({ key,
+          frames: [1, 2, 3, 2].map(n => ({ key: 'walker_' + who + '_' + side + '_' + n })),
+          frameRate: CONFIG.ride.walkerFrameRate, repeat: -1
+        });
+      }
+    }
   }
 
   // ---------- 障碍 ----------
@@ -278,16 +325,22 @@ class Ride extends Phaser.Scene {
       this.tweens.add({ targets: warn, alpha: 0, duration: 900, onComplete: () => warn.destroy() });
     } else if (type === 'wrong') {
       // 逆行车：平时一半概率就在玩家这条道上，单行道路段概率更高
+      // 没有专门的逆行图时，用"别的同学骑车"（rider 图 + 染色，不戴头盔）
       const same = this.inOneWay(p.y) ? CONFIG.ride.oneWay.sameLaneChance : CONFIG.ride.wrongSameLane;
-      o = this.addCar(type, 'npc_wrong', Math.random() < same ? this.nearestLane(p.x) : lane, top - 80, 140);
+      const key = UI.hasArt('npc_wrong') || !UI.hasArt('rider') ? 'npc_wrong' : 'rider';
+      o = this.addCar(type, key, Math.random() < same ? this.nearestLane(p.x) : lane, top - 80, 140);
       if (!o) return;
       o.setFlipY(true);
+      if (key === 'rider') o.setTint(Phaser.Utils.Array.GetRandom(CONFIG.ride.wrongTints));
     } else if (type === 'walker') {
-      // 行人：突然横穿（横着走，不占车道）
+      // 行人：突然横穿（横着走，不占车道）；有图就随机男生 / 女生，朝走的方向播动画
       const fromLeft = Math.random() < 0.5;
       const vx = fromLeft ? 110 : -110;
+      const who = this.walkerKinds.length ? Phaser.Utils.Array.GetRandom(this.walkerKinds) : null;
+      const side = fromLeft ? 'right' : 'left';
       o = this.npcs.create(fromLeft ? this.ROAD_L - 20 : this.ROAD_R + 20,
-        p.y - Phaser.Math.Between(300, 380), 'npc_walker');
+        p.y - Phaser.Math.Between(300, 380), who ? 'walker_' + who + '_' + side + '_1' : 'npc_walker');
+      if (who) o.play('ride_walker_' + who + '_' + side);
       o.setVelocityX(vx);
       o.setData('type', type).setData('lane', null).setData('speed', vx);
     } else if (type === 'car') {
@@ -298,12 +351,14 @@ class Ride extends Phaser.Scene {
       o = this.addCar('bus', 'npc_bus', lane, top - 160, -50);
     }
     if (!o) return;
-    o.body.setSize(o.width * 0.8, o.height * 0.85);
+    this.sizeNpc(o, type);
   }
 
   // 在车道上放一辆车：出生点 followGap 内同道已有车就换一条空道；四条都有就这次不生成（返回 null）
   addCar(type, key, want, y, vy) {
-    const h = this.textures.getFrame(key).height;
+    // 出生点检查用实际显示高度：有真图按 sizes，没图按占位图
+    const S = CONFIG.ride.sizes[type];
+    const h = S && UI.hasArt(key) ? S.height : this.textures.getFrame(key).height;
     const lanes = [want].concat(Phaser.Utils.Array.Shuffle(this.LANES.filter(x => x !== want)));
     const x = lanes.find(x => this.laneFree(x, y, h, null));
     if (x === undefined) return null;
@@ -440,7 +495,7 @@ class Ride extends Phaser.Scene {
 
   // ---------- 被撞 ----------
   onHit(o) {
-    if (this.fallen || this.ending || UI.busy || o.getData('hit')) return;
+    if (this.fallen || this.getting || this.ending || UI.busy || o.getData('hit')) return;
     if (this.time.now < this.invUntil) return;
     o.setData('hit', true);   // 同一个障碍只撞一次
 
@@ -459,6 +514,8 @@ class Ride extends Phaser.Scene {
   }
 
   // ---------- 摔倒 / 扶车 ----------
+  // 有图：趴地（fall_hurt）→ 站起来看着车（fall_stand）→ 每按一次 F 换一帧扶车图（lift_1~6）
+  // 没图：主角转 90° 躺下（旧表现）
   fall() {
     this.fallen = true;
     this.presses = 0;
@@ -466,8 +523,29 @@ class Ride extends Phaser.Scene {
     GameState.hp = 0;
     UI.sfx(this, 'fall');
     this.player.setVelocity(0);
-    this.tweens.add({ targets: this.player, angle: 90, duration: 200 });
     UI.hint(this, '连按 F 扶车（0/' + CONFIG.ride.pickupPresses + '）');
+    if (!UI.hasArt('fall_hurt')) {
+      this.tweens.add({ targets: this.player, angle: 90, duration: 200 });
+      return;
+    }
+    const S = CONFIG.ride.sizes.fall;
+    this.tweens.killTweensOf(this.player);
+    this.player.setAlpha(1).setAngle(0).setVisible(false);
+    this.fallImg = this.add.image(this.player.x, this.player.y, UI.withHelmet('fall_hurt'))
+      .setDisplaySize(S.width, S.height).setDepth(this.player.depth);
+    // 趴一会儿再站起来；这期间按 F 也算数，第一下就直接开始扶
+    this.time.delayedCall(CONFIG.ride.fallStandMs, () => {
+      if (this.fallImg && this.presses === 0) UI.look(this.fallImg, 'fall_stand', S.width, S.height);
+    });
+  }
+
+  // 按了第 n 次 F：换到对应的扶车帧（按 pickupPresses 均匀分到 6 帧上，最后一下一定是扶正）
+  liftFrame(n) {
+    if (!this.fallImg || !UI.hasArt('lift_1')) return;
+    const frames = 6;
+    const i = Math.max(1, Math.round(n / CONFIG.ride.pickupPresses * frames));
+    const S = CONFIG.ride.sizes.lift;
+    UI.look(this.fallImg, 'lift_' + Math.min(i, frames), S.width, S.height);
   }
 
   getUp() {
@@ -477,8 +555,24 @@ class Ride extends Phaser.Scene {
     GameState.battery -= R.fallBatteryCost;
     GameState.falls += 1;
     UI.hint(this, null);
-    UI.say(this, LINES.ride.fall, this.player);
+    if (this.fallImg) {
+      // 扶正的那一帧停一下，再换回骑车的样子
+      this.getting = true;
+      this.time.delayedCall(R.liftDoneMs, () => {
+        this.getting = false;
+        if (this.fallImg) { this.fallImg.destroy(); this.fallImg = null; }
+        this.player.setVisible(true);
+        this.afterGetUp();
+      });
+      return;
+    }
     this.tweens.add({ targets: this.player, angle: 0, duration: 200 });
+    this.afterGetUp();
+  }
+
+  // 重新骑上车：说一句、短暂保护；电被摔没了就推车
+  afterGetUp() {
+    UI.say(this, LINES.ride.fall, this.player);
     this.invUntil = this.time.now + 1500;   // 扶起来后给 1.5 秒保护
     this.tweens.add({ targets: this.player, alpha: 0.3, duration: 150, yoyo: true, repeat: 4,
       onComplete: () => this.player.setAlpha(1) });

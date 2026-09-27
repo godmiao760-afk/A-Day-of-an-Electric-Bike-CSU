@@ -78,6 +78,8 @@ const CONFIG = {
     dominoChance: 0.4,
     dominoMax: 4,
     dominoDelayMs: 90,       // 一辆接一辆倒下的间隔（毫秒）
+    fallAngle: 80,           // 倒下的角度（纯画面）
+    fallShift: 8,            // 倒下时顺带往外滑的像素（纯画面）
     liftMinutes: 0.5         // 每扶起一辆花的游戏分钟
   },
   ride: {
@@ -95,6 +97,20 @@ const CONFIG = {
     laneChangeSpeed: 400,    // NPC 换道的横向速度（像素/秒）
     wrongSameLane: 0.5,      // 平时逆行车出现在玩家这条道的概率
     runProtectMs: 2000,      // 硬闯成功后的无敌时间
+    // 有真图时的显示尺寸（像素）；没图时按占位色块原尺寸
+    // body：碰撞框占显示尺寸的比例 [宽, 高]；不在这里的障碍（汽车、校车）按 [0.8, 0.85]
+    sizes: {
+      rider:    { width: 36, height: 84, body: [0.75, 0.75] },  // 主角骑车（俯视）
+      delivery: { width: 40, height: 86, body: [0.8, 0.85] },   // 外卖车
+      wrong:    { width: 34, height: 80, body: [0.8, 0.85] },   // 逆行车（没专门的图时用别的同学骑车图 + 染色）
+      walker:   { width: 42, height: 63, body: [0.5, 0.7] },    // 横穿的行人（原图左右留白多，碰撞框窄一点）
+      fall:     { width: 190, height: 190 }, // 摔倒：趴地 / 站起来看车（1024 画布）
+      lift:     { width: 144, height: 108 }  // 扶车逐帧（512×384 画布，和摔倒图人物一样大）
+    },
+    wrongTints: [0xa5d8ff, 0xfecaca, 0xbbf7d0, 0xe9d5ff],  // 逆行同学的染色，免得和主角长一样
+    walkerFrameRate: 8,      // 行人走路动画帧率
+    fallStandMs: 700,        // 趴在地上多久后站起来看着车（毫秒）
+    liftDoneMs: 450,         // 扶正后停一下再骑上去（毫秒）
     // 早高峰单行道：每天每条路线掷一次 chance；range 路段（路程比例）里逆行权重 × wrongMul，
     // 逆行车出现在玩家这条道的概率变成 sameLaneChance（平时 0.5）
     oneWay: { chance: 0.5, range: [0.3, 0.7], wrongMul: 3, sameLaneChance: 0.8 },
@@ -121,6 +137,10 @@ const CONFIG = {
     dominoDelayMs: 90,       // 一辆接一辆倒下的间隔（毫秒）
     dominoCooldownMs: 1500,  // 撞车判定一次后，多久内不再判定（防止贴着车每帧都掷骰子）
     liftMinutes: 0.5,        // 每扶起一辆花的游戏分钟
+    // 有真图时的显示尺寸（像素）；body 是碰撞框（像素）
+    bike: { width: 30, height: 68, bodyWidth: 26, bodyHeight: 56 },   // 车棚里停着的车
+    rider: { width: 30, height: 70, bodyWidth: 22, bodyHeight: 22 },  // 骑车的主角（碰撞框小一点，方便钻进车位）
+    pusher: { width: 72, height: 54, bodyWidth: 22, bodyHeight: 22 }, // 推车的主角（侧视，只左右翻转）
     // 门口违停：离入口最近，省时间，但可能被贴条
     ticketChance: 0.5,       // 被贴条的概率
     ticketFine: 20           // 贴条罚款
@@ -132,6 +152,9 @@ const CONFIG = {
     qrRetryChance: 0.5,      // 扫码重试成功率
     // v2：去掉"守着"。插上就回宿舍，看运气
     gambleWinRate: 0.6,      // 充满的概率
-    unpluggedGain: 30        // 被拔线时只充进去多少 %
+    unpluggedGain: 30,       // 被拔线时只充进去多少 %
+    // 有真图时的显示尺寸（像素）；body 是碰撞框（像素）
+    bike: { width: 34, height: 78 },                                   // 桩前停着的车（别人的 / 插上后自己的）
+    pusher: { width: 96, height: 72, bodyWidth: 30, bodyHeight: 40 }  // 推车的主角（侧视，只左右翻转）
   }
 };

@@ -54,10 +54,15 @@ class Park extends Phaser.Scene {
         this.tweens.add({ targets: slot, alpha: 0.4, duration: 600, yoyo: true, repeat: -1 });
         this.slots.push(slot);
       } else {
-        const b = this.bikes.create(s.x + Phaser.Math.Between(-4, 4), s.y, 'bike_other');
+        // 有真图就用 7 种颜色的别人的车，没图用 bike_other + 随机染色
+        const art = UI.hasArt('dorm_bike_1');
+        const key = art ? 'dorm_bike_' + Phaser.Math.Between(1, 7) : 'bike_other';
+        const b = this.bikes.create(s.x + Phaser.Math.Between(-4, 4), s.y, key);
+        if (art) b.setDisplaySize(P.bike.width, P.bike.height);
+        else b.setTint(Phaser.Display.Color.HSVToRGB(Math.random(), 0.15, 1).color);
         b.setAngle(Phaser.Math.Between(-12, 12));
-        b.setTint(Phaser.Display.Color.HSVToRGB(Math.random(), 0.15, 1).color);
         b.refreshBody();
+        if (art) b.body.setSize(P.bike.bodyWidth, P.bike.bodyHeight);   // 静态体按世界像素，要放在 refreshBody 之后
         // 记下排号、序号、原来的角度和 x（扶起来时复原）
         b.setData({ row: s.row, idx: s.idx, angle0: b.angle, x0: b.x, fallen: false });
         this.rows[s.row][s.idx] = b;
@@ -65,10 +70,16 @@ class Park extends Phaser.Scene {
     });
 
     // ---- 主角 ----
+    // 骑车：俯视图，跟着方向转；推车：侧视图（人扶着车），不转，只按左右翻转
     this.player = this.physics.add.sprite(80, 275, this.pushing ? 'pusher' : 'rider');
+    const look = this.pushing ? P.pusher : P.rider;
+    const key = this.pushing ? 'pusher' : 'rider';
+    if (UI.hasArt(key)) UI.look(this.player, key, look.width, look.height);
     this.player.setCollideWorldBounds(true);
-    this.player.body.setSize(22, 22);   // 碰撞框小一点，方便钻进车位
-    this.player.setAngle(90);           // 面朝右（往车棚里走）
+    // 碰撞框小一点，方便钻进车位；动态体要换算回纹理像素
+    const bw = look.bodyWidth / this.player.scaleX, bh = look.bodyHeight / this.player.scaleY;
+    this.player.body.setSize(bw, bh).setOffset((this.player.width - bw) / 2, (this.player.height - bh) / 2);
+    this.turn(1, 0);                    // 面朝右（往车棚里走）
     this.physics.add.collider(this.player, this.bikes, (player, bike) => this.bump(bike));
     this.cameras.main.startFollow(this.player, true, 0.15, 0);
     this.done = false;
@@ -99,7 +110,7 @@ class Park extends Phaser.Scene {
     const d = UI.dir(this);
     const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(this.speed);
     this.player.setVelocity(v.x, v.y);
-    if (d.x || d.y) this.player.setAngle(Phaser.Math.RadToDeg(Math.atan2(d.y, d.x)) + 90);
+    if (d.x || d.y) this.turn(d.x, d.y);
 
     // ---- 旁边有倒着的车：优先扶起来 ----
     const down = this.nearestFallen(50);
@@ -136,6 +147,12 @@ class Park extends Phaser.Scene {
     if (near && f) UI.say(this, LINES.park.full, this.player);
   }
 
+  // 朝向：骑车按方向转（车头朝上的图 +90°）；推车的侧视图不转，往左走就翻过来（原图车头朝右）
+  turn(x, y) {
+    if (this.pushing && UI.hasArt('pusher')) { if (x) this.player.setFlipX(x < 0); return; }
+    this.player.setAngle(Phaser.Math.RadToDeg(Math.atan2(y, x)) + 90);
+  }
+
   // 停车公共部分：记录到达时间、判迟到、把车停到 (x, y)
   parkHere(x, y) {
     this.done = true;
@@ -144,7 +161,11 @@ class Park extends Phaser.Scene {
     if (GameState.clock > CONFIG.classStart) GameState.late = true;
 
     this.player.setVelocity(0);
-    this.player.setTexture('bike').setAngle(0);
+    this.player.disableBody();   // 停好了不再碰撞（换图后碰撞框会跟着缩放变大，会被旁边的车挤开）
+    this.player.setTexture('bike').setAngle(0).setFlipX(false);
+    // 有真图：和车棚里别人的车一样大
+    if (UI.hasArt('bike')) this.player.setDisplaySize(CONFIG.park.bike.width, CONFIG.park.bike.height);
+    else this.player.setScale(1);
     this.player.setPosition(x, y);
     UI.sfx(this, 'park');
   }
@@ -189,7 +210,6 @@ class Park extends Phaser.Scene {
   // ---- 多米诺：撞到别人的车，可能倒一排（collider 回调）----
   bump(bike) {
     const P = CONFIG.park;
-    const FALL_ANGLE = 80, FALL_SHIFT = 8;   // 倒下的角度、顺带往外滑的像素（纯画面）
     if (this.done || bike.getData('fallen')) return;              // 倒着的车不当新起点
     if (this.time.now - this.lastBump < P.dominoCooldownMs) return;
     if (this.player.body.speed < this.speed * 0.3) return;         // 基本没在动（body.speed 是这一步碰撞前的速度）
@@ -211,7 +231,7 @@ class Park extends Phaser.Scene {
       b.setData('fallen', true);
       this.time.delayedCall(k * P.dominoDelayMs, () => {
         if (!b.getData('fallen')) return;   // 还没倒就被扶起来了
-        this.tweens.add({ targets: b, angle: dir * FALL_ANGLE, x: b.getData('x0') + dir * FALL_SHIFT,
+        this.tweens.add({ targets: b, angle: dir * CONFIG.findCar.fallAngle, x: b.getData('x0') + dir * CONFIG.findCar.fallShift,
           duration: 150, ease: 'Quad.In' });
       });
     });

@@ -20,6 +20,27 @@ const UI = {
     return Array.isArray(x) ? Phaser.Utils.Array.GetRandom(x) : x;
   },
 
+  // assets.js 里这张图 file 为 true（有真图，不是色块）
+  hasArt(key) {
+    const a = ASSETS.images[key];
+    return !!(a && a.file);
+  },
+
+  // 戴着头盔、而且有 <key>_helmet 这张图时，返回戴头盔版本的 key
+  withHelmet(key) {
+    return GameState.helmetOn && UI.hasArt(key + '_helmet') ? key + '_helmet' : key;
+  },
+
+  // 换贴图（自动选头盔版本），按宽度 w 等比缩放（传了 h 就用 h）；和上次一样就跳过
+  look(obj, key, w, h) {
+    const k = UI.withHelmet(key);
+    if (obj._look === k) return obj;
+    obj._look = k;
+    obj.setTexture(k);
+    if (w) obj.setDisplaySize(w, h || w * obj.frame.height / obj.frame.width);
+    return obj;
+  },
+
   // 455 → "07:35"
   fmt(clock) {
     const m = Math.floor(clock);

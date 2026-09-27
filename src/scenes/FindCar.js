@@ -31,7 +31,7 @@ class FindCar extends Phaser.Scene {
         // 静态碰撞框用世界像素设置，不能沿用原 PNG 的 85×193。
         b.body.setSize(C.bike.bodyWidth, C.bike.bodyHeight);
         b.setDepth(b.y + C.bike.height / 2);
-        b.setData({ mine, row: r, col: c, moved: false });
+        b.setData({ mine, row: r, col: c, moved: false, fallen: false, x0: b.x });   // x0：扶起来时复原
         if (mine) this.myBike = b;
         this.grid[r][c] = b;
       }
@@ -131,35 +131,47 @@ class FindCar extends Phaser.Scene {
     if (f) this.interact(target, mine, isNeighbor);
   }
 
+  // 四个方向 × 有无头盔各一套走路动画（front 往下走，back 往上走）
   createWalkAnimations() {
-    for (const facing of ['left', 'right']) {
-      const key = 'dorm_walk_' + facing;
-      if (this.anims.exists(key)) continue; // 第二天沿用已有动画
-      this.anims.create({ key,
-        frames: [1, 2, 3, 2].map(n => ({ key: 'player_walk_' + facing + '_' + n })),
-        frameRate: CONFIG.findCar.walkFrameRate, repeat: -1
-      });
+    for (const facing of ['front', 'back', 'left', 'right']) {
+      for (const tail of ['', '_helmet']) {
+        const key = 'dorm_walk_' + facing + tail;
+        if (this.anims.exists(key)) continue; // 第二天沿用已有动画
+        if (tail && !UI.hasArt('player_walk_' + facing + '_1' + tail)) continue;
+        this.anims.create({ key,
+          frames: [1, 2, 3, 2].map(n => ({ key: 'player_walk_' + facing + '_' + n + tail })),
+          frameRate: CONFIG.findCar.walkFrameRate, repeat: -1
+        });
+      }
     }
   }
 
+  // 横向优先决定朝向；戴着头盔（且有图）就播戴头盔的那套
   updateWalkAnimation(d) {
     if (d.x) this.walkFacing = d.x < 0 ? 'left' : 'right';
-    if (d.x || d.y) this.player.anims.play('dorm_walk_' + this.walkFacing, true);
+    else if (d.y) this.walkFacing = d.y < 0 ? 'back' : 'front';
+    const tail = GameState.helmetOn && this.anims.exists('dorm_walk_' + this.walkFacing + '_helmet') ? '_helmet' : '';
+    if (d.x || d.y) this.player.anims.play('dorm_walk_' + this.walkFacing + tail, true);
     else {
       this.player.anims.stop();
-      this.player.setTexture('player_walk_' + this.walkFacing + '_2');
+      this.player.setTexture(UI.withHelmet('player_walk_' + this.walkFacing + '_2'));
     }
   }
 
-  // 以人物脚底和车身边缘计算距离，较长的车图也能从上下方交互。
+  // 人物脚底到车身碰撞框边缘的距离，较长的车图也能从上下方交互。
+  edgeDist(b) {
+    const p = this.player.body.center, body = b.body;
+    const dx = Math.max(body.left - p.x, 0, p.x - body.right);
+    const dy = Math.max(body.top - p.y, 0, p.y - body.bottom);
+    return Math.hypot(dx, dy);
+  }
+
+  // 找离主角最近、在 range 以内的车（挪开的、倒着的不算）
   nearestBike(range) {
     let best = null, bestD = range;
     this.bikes.getChildren().forEach(b => {
-      if (b.getData('moved')) return;
-      const p = this.player.body.center, body = b.body;
-      const dx = Math.max(body.left - p.x, 0, p.x - body.right);
-      const dy = Math.max(body.top - p.y, 0, p.y - body.bottom);
-      const dd = Math.hypot(dx, dy);
+      if (b.getData('moved') || b.getData('fallen')) return;
+      const dd = this.edgeDist(b);
       if (dd < bestD) { bestD = dd; best = b; }
     });
     return best;
@@ -194,7 +206,64 @@ class FindCar extends Phaser.Scene {
       angle: Phaser.Math.Between(-C.moveAngle, C.moveAngle), duration: C.moveDuration,
       onUpdate: () => bike.setDepth(bike.y + C.bike.height / 2)
     });
-    UI.say(this, LINES.findCar.moved, this.player);
+    if (!this.domino(bike)) UI.say(this, LINES.findCar.moved, this.player);
+  }
+
+  // ---- 多米诺：挪车时可能带倒同一排，返回有没有倒 ----
+  domino(bike) {
+    const C = CONFIG.findCar;
+    if (Math.random() >= C.dominoChance) return false;
+
+    // 往远离自己车的方向，从被挪那辆的另一侧邻车开始；遇到挪开的 / 倒着的 / 排尾就停
+    const dir = bike.getData('col') < this.myBike.getData('col') ? -1 : 1;
+    const row = this.grid[bike.getData('row')];
+    const chain = [];
+    for (let c = bike.getData('col') + dir; c >= 0 && c < row.length && chain.length < C.dominoMax; c += dir) {
+      const b = row[c];
+      if (b.getData('moved') || b.getData('fallen')) break;
+      chain.push(b);
+    }
+    if (!chain.length) return false;   // 被挪的车在排尾，没东西可倒
+
+    // 先全部标记为倒下，再一辆接一辆播动画（节奏和车棚一致）
+    chain.forEach((b, k) => {
+      b.setData('fallen', true);
+      this.time.delayedCall(k * C.dominoDelayMs, () => {
+        if (!b.getData('fallen')) return;   // 还没倒就被扶起来了
+        this.tweens.add({ targets: b, angle: dir * C.fallAngle, x: b.getData('x0') + dir * C.fallShift,
+          duration: 150, ease: 'Quad.In' });
+      });
+    });
+    UI.sfx(this, 'fall');
+    this.cameras.main.shake(120, 0.005);
+    UI.say(this, LINES.park.domino, this.player);
+    return true;
+  }
+
+  // 还有没有倒着的车
+  hasFallen() {
+    return this.bikes.getChildren().some(b => b.getData('fallen'));
+  }
+
+  // 距离 range 以内最近的一辆倒着的车，没有返回 null
+  nearestFallen(range) {
+    let best = null, bestD = range;
+    this.bikes.getChildren().forEach(b => {
+      if (!b.getData('fallen')) return;
+      const dd = this.edgeDist(b);
+      if (dd < bestD) { best = b; bestD = dd; }
+    });
+    return best;
+  }
+
+  // 扶起一辆：摆正、回到原位，花一点时间
+  liftBike(b) {
+    b.setData('fallen', false);
+    this.tweens.killTweensOf(b);   // 正在倒的动画停掉
+    this.tweens.add({ targets: b, angle: 0, x: b.getData('x0'), duration: 200 });
+    GameState.clock += CONFIG.findCar.liftMinutes;
+    UI.sfx(this, 'park');
+    UI.say(this, this.hasFallen() ? LINES.park.lift : LINES.park.liftedAll, this.player);
   }
 
   unlock() {
@@ -204,8 +273,7 @@ class FindCar extends Phaser.Scene {
     this.player.setVelocity(0).disableBody(true, true);
     this.myBike.disableBody(true, true);
     this.bikeMarker.setVisible(false);
-    const frame = this.textures.get('dorm_rider').has('trimmed') ? 'trimmed' : undefined;
-    this.rider = this.add.image(this.myBike.x, this.myBike.y, 'dorm_rider', frame)
+    this.rider = this.add.image(this.myBike.x, this.myBike.y, UI.withHelmet('dorm_rider'))
       .setDisplaySize(C.rider.width, C.rider.height).setDepth(this.myBike.depth);
     this.cameras.main.startFollow(this.rider, true, 0.15, 0.15);
     UI.hint(this, null);

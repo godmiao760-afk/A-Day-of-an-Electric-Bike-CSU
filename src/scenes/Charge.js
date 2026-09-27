@@ -35,17 +35,24 @@ class Charge extends Phaser.Scene {
       const p = this.piles.create(x, 130, 'pile');
       p.setData({ state: st, tried: false });
       p.setDepth(10);
-      // 被占的桩前面停着一辆别人的车
+      // 被占的桩前面停着一辆别人的车（有真图就随机一种颜色）
       if (st === 'occupied') {
-        this.add.image(x, 190, 'bike_other').setDepth(9);
+        if (UI.hasArt('dorm_bike_1')) {
+          this.add.image(x, 190, 'dorm_bike_' + Phaser.Math.Between(1, 7))
+            .setDisplaySize(C.bike.width, C.bike.height).setDepth(9);
+        } else {
+          this.add.image(x, 190, 'bike_other').setDepth(9);
+        }
       }
       this.add.text(x, 100, String(i + 1), UI.style(14, '#e5e7eb')).setOrigin(0.5).setDepth(11);
     });
 
-    // ---- 主角推车 ----
+    // ---- 主角推车（有真图：侧视，往左走就翻过来）----
     this.player = this.physics.add.sprite(W / 2, 460, 'pusher');
+    if (UI.hasArt('pusher')) UI.look(this.player, 'pusher', C.pusher.width, C.pusher.height);
     this.player.setCollideWorldBounds(true);
-    this.player.body.setSize(30, 40);
+    const bw = C.pusher.bodyWidth / this.player.scaleX, bh = C.pusher.bodyHeight / this.player.scaleY;
+    this.player.body.setSize(bw, bh).setOffset((this.player.width - bw) / 2, (this.player.height - bh) / 2);
     this.player.setDepth(20);
     this.physics.add.collider(this.player, this.piles);
     this.done = false;
@@ -71,6 +78,7 @@ class Charge extends Phaser.Scene {
     const d = UI.dir(this);
     const v = new Phaser.Math.Vector2(d.x, d.y).normalize().scale(CONFIG.charge.walkSpeed * speedMul());
     this.player.setVelocity(v.x, v.y);
+    if (d.x && UI.hasArt('pusher')) this.player.setFlipX(d.x < 0);   // 原图车头朝右
 
     // ---- 最近的充电桩 ----
     let pile = null, best = 80;
@@ -121,7 +129,13 @@ class Charge extends Phaser.Scene {
     spend(CONFIG.money.charge);   // 扫码付钱
     UI.updateHud(this);           // 只刷这一次（显示扣钱），之后 HUD 冻住
     this.player.setVelocity(0);
+    this.player.disableBody();   // 插上了不再碰撞
     this.player.setPosition(pile.x, pile.y + 60);
+    // 有真图：车停在桩前充电（和被占的桩一样），人不再显示
+    if (UI.hasArt('dorm_bike')) {
+      const C = CONFIG.charge;
+      this.player.setTexture('dorm_bike').setFlipX(false).setDisplaySize(C.bike.width, C.bike.height);
+    }
     pile.setTint(0x22c55e);
 
     // 插上就回宿舍：现在就定结果，但不说出来（第二天 Intro 揭晓）
