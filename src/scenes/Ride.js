@@ -143,7 +143,7 @@ class Ride extends Phaser.Scene {
     this.presses = 0;
     this.ending = false;
     this.wateringBgm = null;
-    this.events.once('shutdown', () => this.stopWateringBgm());
+    this.events.once('shutdown', () => this.stopWateringBgm(true));
     this.warnedLow = false;
     this.warnedSlope = false;
     this.warnedPolice = false;
@@ -546,11 +546,17 @@ class Ride extends Phaser.Scene {
     this.wateringBgm.play();
   }
 
-  stopWateringBgm() {
+  stopWateringBgm(immediate = false) {
     if (!this.wateringBgm) return;
-    this.wateringBgm.stop();
-    this.wateringBgm.destroy();
+    const sound = this.wateringBgm;
     this.wateringBgm = null;
+    if (immediate) {
+      sound.stop();
+      sound.destroy();
+      return;
+    }
+    this.tweens.add({ targets: sound, volume: 0, duration: 900,
+      onComplete: () => { sound.stop(); sound.destroy(); } });
   }
 
   // ---------- 被撞 ----------
