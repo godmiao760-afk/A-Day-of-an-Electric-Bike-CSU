@@ -60,7 +60,21 @@ class Ending extends Phaser.Scene {
     const tip = this.add.text(480, 500, LINES.endingUi.restart, UI.style(20)).setOrigin(0.5);
     this.tweens.add({ targets: tip, alpha: 0.4, duration: 700, yoyo: true, repeat: -1 });
 
-    UI.sfx(this, hidden ? 'fall' : 'park');
+    // 结局各自使用专用音效：正常结局按评价播放，隐藏结局按触发原因播放。
+    // 饥饿结局需要先有肚子叫，再播放昏倒声，增强因果感。
+    const endingSfx = {
+      perfect: 'ending_perfect',
+      pass: 'ending_pass',
+      fail: 'ending_fail',
+      police: 'ending_police',
+      broke: 'ending_broke'
+    }[this.key];
+    if (this.key === 'faint') {
+      UI.sfx(this, 'ending_faint_belly');
+      this.time.delayedCall(350, () => UI.sfx(this, 'ending_faint'));
+    } else if (endingSfx) {
+      UI.sfx(this, endingSfx);
+    }
 
     // 等动画播完再允许重开，防止上一个场景按的 F 直接跳过
     this.ready = false;
