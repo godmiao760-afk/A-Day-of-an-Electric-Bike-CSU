@@ -6,6 +6,8 @@
 
 **主题：Reimagine Campus** · 黑客松作品 · Phaser 3 网页游戏，浏览器打开即玩，一局 5–10 分钟。
 
+**在线试玩：<https://minicamp-scooter-assets.netlify.app/>**
+
 ---
 
 ## 要解决的问题
@@ -32,7 +34,7 @@
 
 ## 快速开始
 
-游戏用到了图片和音效，需要通过本地服务器打开（直接双击 `index.html` 会加载失败）。任选一种方式：
+游戏用到了图片和音效，需要通过服务器打开（直接双击 `index.html` 会加载失败）。任选一种方式：
 
 **方式一：VS Code**
 1. 安装 **Live Server** 插件
@@ -44,8 +46,11 @@
 python -m http.server 8000
 # 然后浏览器打开 http://localhost:8000
 ```
-**方式三：浏览器**
-```https://minicamp-scooter-assets.netlify.app/
+
+**方式三：浏览器在线试玩（不用下载）**
+
+直接打开 <https://minicamp-scooter-assets.netlify.app/>（部署在 Netlify）。
+
 打开后点一下画面，按 **F** 开始。
 
 > 更新了素材但看不到变化？按 **Ctrl + F5** 强制刷新。
