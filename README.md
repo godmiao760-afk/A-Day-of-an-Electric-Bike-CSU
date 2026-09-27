@@ -44,7 +44,8 @@
 python -m http.server 8000
 # 然后浏览器打开 http://localhost:8000
 ```
-
+**方式三：浏览器**
+```https://minicamp-scooter-assets.netlify.app/
 打开后点一下画面，按 **F** 开始。
 
 > 更新了素材但看不到变化？按 **Ctrl + F5** 强制刷新。
