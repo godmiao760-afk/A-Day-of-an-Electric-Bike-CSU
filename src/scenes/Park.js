@@ -1,24 +1,33 @@
-// ===== 场景3 / 3′ Park：教学楼车棚停车（B 负责）=====
-// data.pushing = true 时是推车（没电），速度减半、已迟到。
+// ===== 场景3 / 3′ Park：停车（B 负责）=====
+// data.place：'teach' 教学楼车棚（默认，完整玩法：多米诺 + 门口违停）
+//             'canteen' / 'houhu' / 'library' 中午 / 傍晚的简易停车（车少好停、撞不倒）
+// data.meal：停好车后要做的事（'canteen' | 'houhu' | 'library'，吃饭 / 自习，teach 不用）
+// data.evening：傍晚吃的（吃完直接进晚上充电）；中午的吃完骑回教学楼上下午课
+// data.pushing = true 时是推车（没电），速度减半。
 class Park extends Phaser.Scene {
   constructor() { super('Park'); }
 
   init(data) {
-    this.pushing = !!(data && data.pushing);
+    data = data || {};
+    this.place = data.place || 'teach';
+    this.meal = data.meal || null;
+    this.evening = !!data.evening;
+    this.pushing = !!data.pushing;
   }
 
   create() {
     UI.setup(this);
     UI.sfx(this, 'tow', { loop: true });
     const P = CONFIG.park;
+    const PL = P.places[this.place];   // 这个停车场景的布局参数
     this.speed = P.rideSpeed * (this.pushing ? P.pushSpeedFactor : 1) * speedMul();   // 饿了更慢
 
-    // ---- 布局：两排车棚，中间是通道 ----
-    const W = 1600, H = 540;
+    // ---- 布局：两排车棚，中间是通道（宽窄跟着车位数走）----
+    const W = Math.max(960, 260 + PL.perRow * 44 + 108), H = 540;
     this.physics.world.setBounds(0, 70, W, H - 70);
     this.cameras.main.setBounds(0, 0, W, H);
 
-    if (UI.hasArt('bg_park')) {
+    if (this.place === 'teach' && UI.hasArt('bg_park')) {
       // 有真图：按宽铺满、保持比例，底对齐（车棚空地铺满画面），顶上加一条暗色标题栏
       this.add.image(0, H, 'bg_park').setOrigin(0, 1).setDisplaySize(W, W * 1024 / 1536);
       this.add.rectangle(0, 0, W, 70, 0x000000, 0.55).setOrigin(0);
@@ -26,12 +35,12 @@ class Park extends Phaser.Scene {
       this.add.tileSprite(0, 0, W, H, 'road').setOrigin(0);
       this.add.tileSprite(0, 0, W, 70, 'building').setOrigin(0);
     }
-    this.add.text(W / 2, 35, '教学楼 · 车棚', UI.style(26, '#fecaca')).setOrigin(0.5);
+    this.add.text(W / 2, 35, LINES.park.places[this.place], UI.style(26, '#fecaca')).setOrigin(0.5);
     // 教学楼门口（左侧入口）
     this.add.text(20, 470, '← 入口', UI.style(18, '#9ca3af'));
 
-    // 车位：上排 y=150，下排 y=400，每排 26 个
-    const SLOT_GAP = 44, FIRST_X = 260, PER_ROW = 28;
+    // 车位：上排 y=150，下排 y=400
+    const SLOT_GAP = 44, FIRST_X = 260, PER_ROW = PL.perRow;
     const rowsY = [150, 400];
     const all = [];
     rowsY.forEach((y, r) => {
@@ -42,14 +51,18 @@ class Park extends Phaser.Scene {
     g.fillStyle(0x000000, 0.25);
     rowsY.forEach(y => g.fillRect(FIRST_X - 30, y - 45, PER_ROW * SLOT_GAP + 16, 90));
 
-    // 门口禁停区：入口旁、上排车棚左边，只画出来，不挡路
-    const zone = this.add.rectangle(160, 150, 70, 90, 0xef4444, 0.2).setStrokeStyle(3, 0xef4444);
-    this.add.text(160, 150, LINES.park.noParkZone, UI.style(20, '#fca5a5')).setOrigin(0.5);
-    this.noPark = zone.getBounds();
+    // 门口禁停区：入口旁、上排车棚左边，只画出来，不挡路（只有教学楼有）
+    this.noPark = null;
+    if (PL.illegal) {
+      const zone = this.add.rectangle(160, 150, 70, 90, 0xef4444, 0.2).setStrokeStyle(3, 0xef4444);
+      this.add.text(160, 150, LINES.park.noParkZone, UI.style(20, '#fca5a5')).setOrigin(0.5);
+      this.noPark = zone.getBounds();
+    }
 
-    // 随机挑空位（不放在最靠近入口的 6 个里，逼玩家往里找）
-    const candidates = all.filter((s, i) => (i % PER_ROW) >= 6);
-    const free = Phaser.Utils.Array.Shuffle(candidates.slice()).slice(0, P.freeSlots);
+    // 随机挑空位（教学楼不放在最靠近入口的 6 个里，逼玩家往里找；小场景随便放）
+    const skip = this.place === 'teach' ? 6 : 2;
+    const candidates = all.filter((s, i) => (i % PER_ROW) >= skip);
+    const free = Phaser.Utils.Array.Shuffle(candidates.slice()).slice(0, PL.free);
 
     this.bikes = this.physics.add.staticGroup();
     this.slots = [];
@@ -98,7 +111,7 @@ class Park extends Phaser.Scene {
     // ---- 界面 ----
     UI.createClock(this);
     UI.createHud(this, false);
-    if (this.pushing) {
+    if (this.pushing && this.place === 'teach') {   // "已迟到"是上午的判定，中午/傍晚推车不显示
       this.add.text(12, 92, '已迟到', UI.style(20, '#ffffff', {
         backgroundColor: '#dc2626', padding: { x: 10, y: 4 }
       })).setScrollFactor(0).setDepth(1000);
@@ -147,7 +160,7 @@ class Park extends Phaser.Scene {
     }
 
     // ---- 是否在门口禁停区 ----
-    if (this.noPark.contains(this.player.x, this.player.y)) {
+    if (this.noPark && this.noPark.contains(this.player.x, this.player.y)) {
       UI.hint(this, LINES.park.illegalHint);
       if (f) {
         if (this.hasFallen()) UI.say(this, LINES.park.liftFirst, this.player);
@@ -170,11 +183,14 @@ class Park extends Phaser.Scene {
   }
 
   // 停车公共部分：记录到达时间、判迟到、把车停到 (x, y)
+  // 到达时间 / 迟到只属于上午的教学楼停车；中午 / 傍晚停车不覆盖上午记录
   parkHere(x, y) {
     this.done = true;
     UI.hint(this, null);
-    GameState.arriveClock = GameState.clock;
-    if (GameState.clock > CONFIG.classStart) GameState.late = true;
+    if (this.place === 'teach') {
+      GameState.arriveClock = GameState.clock;
+      if (GameState.clock > CONFIG.classStart) GameState.late = true;
+    }
 
     this.player.setVelocity(0);
     this.player.disableBody();   // 停好了不再碰撞（换图后碰撞框会跟着缩放变大，会被旁边的车挤开）
@@ -192,7 +208,47 @@ class Park extends Phaser.Scene {
     this.parkHere(slot.x, slot.y);
     slot.destroy();
     UI.say(this, LINES.park.parked, this.player);
-    this.time.delayedCall(1200, () => UI.fadeTo(this, 'Class', { part: 'morning' }));
+    if (this.place === 'teach') {
+      this.time.delayedCall(1200, () => UI.fadeTo(this, 'Class', { part: 'morning' }));
+    } else {
+      this.time.delayedCall(1200, () => this.interlude());
+    }
+  }
+
+  // ---- 停好车之后的正事：吃饭 / 自习（结算钱、饥饿、时间），再回教学楼或进夜晚 ----
+  interlude() {
+    const s = GameState, P = CONFIG.places, M = LINES.meals;
+    let text;
+    if (this.meal === 'canteen') {
+      spend(P.canteen.cost); eat(P.canteen.food); s.meals.push('食堂');
+      s.clock += Phaser.Math.Between(P.canteen.minutes[0], P.canteen.minutes[1]);
+      UI.sfx(this, 'pay');
+      text = UI.rand(M.ateCanteen);
+    } else if (this.meal === 'houhu') {
+      if (s.money < P.houhu.cost) {
+        // 路上被罚款，到地方已经吃不起
+        text = M.fineNoFood;
+      } else {
+        s.battery = Math.max(0, s.battery - P.houhu.battery);
+        spend(P.houhu.cost); eat(P.houhu.food); s.meals.push('后湖');
+        s.clock += Phaser.Math.Between(P.houhu.minutes[0], P.houhu.minutes[1]);
+        UI.sfx(this, 'pay');
+        text = UI.rand(M.ateHouhu);
+      }
+    } else if (this.meal === 'library') {
+      s.clock += Phaser.Math.Between(P.library.minutes[0], P.library.minutes[1]);
+      text = UI.rand(M.studied);
+    } else {
+      text = M.skipped;
+    }
+    UI.updateHud(this);
+    UI.alert(this, text, () => {
+      const k = hiddenEndingKey();   // 吃饭花光钱 / 饿晕 → 隐藏结局
+      if (k) { UI.fadeTo(this, 'Ending', { key: k }); return; }
+      // 中午：骑回教学楼上下午课；傍晚：直接进夜晚充电
+      if (this.evening) UI.fadeTo(this, 'Charge');
+      else UI.fadeTo(this, 'Ride', { trip: 'back' });
+    });
   }
 
   // ---- 门口违停：问一下，停了之后可能被贴条 ----
@@ -225,9 +281,10 @@ class Park extends Phaser.Scene {
     });
   }
 
-  // ---- 多米诺：撞到别人的车，可能倒一排（collider 回调）----
+  // ---- 多米诺：撞到别人的车，可能倒一排（collider 回调；简易停车场景撞不倒）----
   bump(bike) {
     const P = CONFIG.park;
+    if (!P.places[this.place].domino) return;
     if (this.done || bike.getData('fallen')) return;              // 倒着的车不当新起点
     if (this.time.now - this.lastBump < P.dominoCooldownMs) return;
     if (this.player.body.speed < this.speed * 0.3) return;         // 基本没在动（body.speed 是这一步碰撞前的速度）

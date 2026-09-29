@@ -57,7 +57,9 @@ class Ending extends Phaser.Scene {
       .replace('{runs}', s.runs).replace('{money}', money);
     this.add.text(480, 448, stats, UI.style(16, '#9ca3af')).setOrigin(0.5);
 
-    const tip = this.add.text(480, 500, LINES.endingUi.restart, UI.style(20)).setOrigin(0.5);
+    const tip = this.add.text(480, 500,
+      this.key === 'perfect' ? LINES.endingUi.dreamRestart : LINES.endingUi.restart,
+      UI.style(20)).setOrigin(0.5);
     this.tweens.add({ targets: tip, alpha: 0.4, duration: 700, yoyo: true, repeat: -1 });
 
     // 结局各自使用专用音效：正常结局按评价播放，隐藏结局按触发原因播放。
@@ -94,6 +96,8 @@ class Ending extends Phaser.Scene {
 
   restart() {
     if (this._leaving) return;
+    // 完美结局彩蛋：先看小电驴的梦，梦醒了再回开始画面
+    if (this.key === 'perfect') { UI.fadeTo(this, 'Ride', { dream: true }); return; }
     newGame();
     UI.fadeTo(this, 'Intro');
   }

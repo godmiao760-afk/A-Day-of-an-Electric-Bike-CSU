@@ -103,21 +103,21 @@ class NodeScene extends Phaser.Scene {
     add('houhu', M.houhu, '（+' + P.houhu.food + ' 饱，耗电 ' + P.houhu.battery + '%）', P.houhu.cost,
       s.battery >= P.houhu.battery, M.noBattery);
     if (this.kind === 'noon' && !s.items.license) add('license', M.license, '', P.license.cost);
+    if (this.kind === 'evening') add('library', M.library, '（不花钱不吃饭）', P.library.cost);
     add('skip', M.skip, '', 0);   // 不吃：不花时间
     opts.push({ id: 'backpack', label: LINES.gate.backpack });
 
     UI.choice(this, M.question + '（饥饿 ' + Math.round(s.hunger) + '/100）', opts, (i) => {
       const id = opts[i].id;
       if (id === 'backpack') { UI.backpack(this, () => this.meal()); return; }
-      // 每个选项都花时间（中午花完晚于 14:00 下午就迟到）；不吃 = 0
+      // 食堂 / 后湖 / 图书馆：真的骑过去（吃饭 / 自习的结算在停好车之后，见 Park.interlude）
+      if (id === 'canteen' || id === 'houhu' || id === 'library') {
+        UI.fadeTo(this, 'Ride', { trip: id, place: id, meal: id, evening: this.kind === 'evening' });
+        return;
+      }
+      // 办牌照 / 不吃：直接结算（时间在各选项里加）
       if (P[id]) s.clock += Phaser.Math.Between(P[id].minutes[0], P[id].minutes[1]);
-      if (id === 'canteen') {
-        spend(P.canteen.cost); eat(P.canteen.food); s.meals.push('食堂');
-        UI.sfx(this, 'pay');
-        this.finish(M.ateCanteen);
-      } else if (id === 'houhu') {
-        this.houhu();
-      } else if (id === 'license') {
+      if (id === 'license') {
         spend(P.license.cost); s.items.license = true;
         UI.sfx(this, 'pay');
         this.finish(M.gotLicense);
@@ -125,44 +125,6 @@ class NodeScene extends Phaser.Scene {
         this.finish(M.skipped);
       }
     });
-  }
-
-  // 去后湖：要出校门，耗电，今天有交警就可能碰上（停车受检 / 硬闯）
-  houhu() {
-    const s = GameState, P = CONFIG.places, L = LINES.police;
-    s.battery = Math.max(0, s.battery - P.houhu.battery);
-    // extra：吃完那句后面再补一句（硬闯成功的预兆）
-    const eatThere = (extra) => {
-      spend(P.houhu.cost); eat(P.houhu.food); s.meals.push('后湖');
-      UI.sfx(this, 'pay');
-      this.finish(extra ? UI.rand(LINES.meals.ateHouhu) + '\n' + extra : LINES.meals.ateHouhu);
-    };
-    if (s.policeToday && Math.random() < CONFIG.police.encounterChance) {   // 每次单独掷一次是否碰上交警
-      UI.sfx(this, 'whistle');
-      UI.sfx(this, 'policeVoice');
-      UI.choice(this, L.askStop, [L.optStop, L.optRun], (i) => {
-        if (i === 0) {
-          // 停车受检：和原来一样
-          const r = policeCheck(false);
-          if (r.fines.length) UI.sfx(this, 'pay');
-          UI.updateHud(this);
-          UI.alert(this, L.houhu + '\n\n' + policeText(r), () => {
-            // 罚完钱还够不够吃
-            if (s.money >= P.houhu.cost) eatThere();
-            else this.finish(LINES.meals.fineNoFood);
-          });
-        } else if (!tryRun()) {
-          // 硬闯被抓 → 隐藏结局「派出所」
-          UI.fadeTo(this, 'Ending', { key: 'police' });
-        } else {
-          // 闯过去了：不罚款、不耽误时间（runs 已在 tryRun 里 +1）
-          UI.say(this, L.runOk);
-          this.time.delayedCall(1200, () => eatThere(L.runOmen));
-        }
-      });
-    } else {
-      eatThere();
-    }
   }
 
   finish(text) {

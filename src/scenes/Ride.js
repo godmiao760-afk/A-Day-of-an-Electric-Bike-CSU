@@ -9,13 +9,26 @@ class Ride extends Phaser.Scene {
   constructor() { super('Ride'); }
 
   // NodeScene 传进来今天这条路堵不堵（单行道）；DEBUG 直接进来时 data 可能是 {}
-  init(data) { this.oneWay = !!(data && data.oneWay); }
+  // data.dream = true：完美结局彩蛋"小电驴的梦"，路线和规则见 CONFIG.ride.routes.dream
+  // data.trip：中午 / 傍晚的短途骑行（'canteen' | 'houhu' | 'back' | 'library'），place / meal / evening 原样转给 Park
+  init(data) {
+    data = data || {};
+    this.dream = !!data.dream;
+    this.oneWay = !!data.oneWay && !this.dream;
+    this.trip = data.trip || null;
+    this.place = data.place || null;
+    this.meal = data.meal || null;
+    this.evening = !!data.evening;
+  }
 
   create() {
     UI.setup(this);
     const R = CONFIG.ride;
     const s = GameState;
-    this.route = R.routes[s.route] || R.routes.inside;
+    if (this.dream) GameState.clockPaused = true;   // 梦里没有时间
+    this.route = this.dream ? R.routes.dream
+      : this.trip ? R.routes[this.trip]
+      : (R.routes[s.route] || R.routes.inside);
     s.hp = R.maxHp;
 
     // ---- 地图尺寸 ----
@@ -33,15 +46,24 @@ class Ride extends Phaser.Scene {
     } else {
       this.slopeTopY = this.slopeBotY = -1;
     }
-    // 早高峰单行道路段（和坡道一样按路程比例算 y 区间）
-    if (this.oneWay) {
+    // 早高峰单行道路段（和坡道一样按路程比例算 y 区间；梦里没有单行道）
+    if (this.oneWay && !this.dream) {
       this.oneWayTopY = this.startY - len * R.oneWay.range[1];
       this.oneWayBotY = this.startY - len * R.oneWay.range[0];
     } else {
       this.oneWayTopY = this.oneWayBotY = -1;
     }
-    // 交警检查点（只有校外路线、而且今天有交警）：每次单独掷一次是否真的碰上，第一天新手教学必碰上
-    const rideEncounter = s.day === 1 || Math.random() < CONFIG.police.encounterChance;
+    // 红绿灯（梦里没有灯；起始相位随机，每局不一样）
+    if (this.route.lightAt != null) {
+      this.lightY = this.startY - len * this.route.lightAt;
+      this.lightPhase = Math.random() * (R.trafficLight.greenMs + R.trafficLight.yellowMs + R.trafficLight.redMs);
+      this.lightPassed = false;   // 这一局是否已经过线（闯红灯判定只做一次）
+      this.buildLight();
+    } else {
+      this.lightY = null;
+    }
+    // 交警检查点（校外 / 去后湖的路上，而且今天有交警）：每次单独掷一次是否真的碰上，第一天早晨的校外路线必碰上
+    const rideEncounter = (!this.trip && s.day === 1) || Math.random() < CONFIG.police.encounterChance;
     this.policeY = (this.route.policeAt && s.policeToday && rideEncounter) ? this.startY - len * this.route.policeAt : null;
     this.policeDone = false;
 
@@ -64,9 +86,9 @@ class Ride extends Phaser.Scene {
         img.setX(480 + (img.width / 2 - L.centerX) * L.scale);   // 同样让图里路中线对准屏幕中间
       }
     } else {
-      const sideTex = s.route === 'outside' ? 'road' : 'grass';   // 校外两边是街道
+      const sideTex = this.route.side || (s.route === 'outside' ? 'road' : 'grass');   // 校外两边是街道
       this.bgGrass = this.add.tileSprite(0, 0, 960, 540, sideTex).setOrigin(0).setScrollFactor(0);
-      if (s.route === 'outside') this.bgGrass.setTint(0x9ca3af);
+      if (sideTex === 'road') this.bgGrass.setTint(0x9ca3af);
       this.bgRoad = this.add.tileSprite(this.ROAD_L, 0, this.ROAD_R - this.ROAD_L, 540, 'road')
         .setOrigin(0).setScrollFactor(0);
     }
@@ -95,13 +117,15 @@ class Ride extends Phaser.Scene {
       g.fillStyle(0xfacc15, 0.8).fillRect(this.ROAD_L, 0, 4, H).fillRect(this.ROAD_R - 4, 0, 4, H);
     }
 
-    // 终点：教学楼
+    // 终点：教学楼（短途骑行换成食堂 / 后湖 / 图书馆）
+    this.goalLabel = this.trip ? LINES.ride.tripGoal[this.trip] : '教学楼';
     this.add.tileSprite(0, 0, 960, this.goalY - 60, 'building').setOrigin(0);
-    this.add.text(480, (this.goalY - 60) / 2, '教 学 楼', UI.style(40, '#fecaca')).setOrigin(0.5);
+    this.add.text(480, (this.goalY - 60) / 2, this.goalLabel.split('').join(' '), UI.style(40, '#fecaca')).setOrigin(0.5);
     g.fillStyle(0xffffff, 0.9);
     for (let x = this.ROAD_L; x < this.ROAD_R; x += 40) g.fillRect(x, this.goalY, 20, 10);
     // 起点
-    this.add.text(480, this.startY + 120, s.route === 'outside' ? '校门口（校外路线）' : '宿舍（校内路线）',
+    this.add.text(480, this.startY + 120, this.trip ? '出发' :
+      (s.route === 'outside' ? '校门口（校外路线）' : '宿舍（校内路线）'),
       UI.style(24, '#fecaca')).setOrigin(0.5);
 
     // 交警检查点
@@ -157,7 +181,8 @@ class Ride extends Phaser.Scene {
     })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
     UI.hint(this, 'W 前进　S 刹车　A / D 换道');
     this.time.delayedCall(3000, () => { if (!this.fallen) UI.hint(this, null); });
-    UI.say(this, s.route === 'outside' ? LINES.ride.startOutside : LINES.ride.startInside, this.player);
+    UI.say(this, this.dream ? LINES.ride.dreamStart : this.trip ? LINES.ride.tripStart[this.trip] :
+      (s.route === 'outside' ? LINES.ride.startOutside : LINES.ride.startInside), this.player);
   }
 
   update(time, delta) {
@@ -170,6 +195,7 @@ class Ride extends Phaser.Scene {
     const f = UI.pressedF(this);
     if (UI.pressedE(this)) UI.say(this, LINES.backpack.noRide, this.player);
     this.trafficStep(delta);   // 车道让行规则：弹窗、摔倒时障碍照样在动，所以放在最前面每帧都跑
+    if (this.lightY) { this.updateLight(); this.checkLightPass(); }   // 红绿灯：灯色刷新 + 闯灯判定
     if (UI.blocked(this) || this.ending) { this.player.setVelocity(0); return; }
 
     const R = CONFIG.ride;
@@ -206,10 +232,12 @@ class Ride extends Phaser.Scene {
     p.setVelocity(d.x * R.sideSpeed * speedMul(), this.vy);
     p.setAngle(d.x * 8);
 
-    // ---- 耗电：只在移动时掉，坡道、载人掉得快 ----
+    // ---- 耗电：只在移动时掉，坡道、载人掉得快（梦里不掉电）----
     const moving = (this.vy < -5 || d.x !== 0) ? 1 : 0;
-    s.battery -= moving * (onSlope ? R.drainSlope : R.drainFlat) *
-      (s.passenger ? CONFIG.passenger.drainFactor : 1) * dt;
+    if (!this.dream) {
+      s.battery -= moving * (onSlope ? R.drainSlope : R.drainFlat) *
+        (s.passenger ? CONFIG.passenger.drainFactor : 1) * dt;
+    }
 
     // ---- 独白提示 ----
     if (onSlope && !this.warnedSlope) { this.warnedSlope = true; UI.say(this, LINES.ride.slope, p); }
@@ -221,10 +249,10 @@ class Ride extends Phaser.Scene {
     }
 
     // ---- 剩余距离 ----
-    this.distText.setText('距教学楼 ' + Math.max(0, Math.round((p.y - this.goalY) / 10)) + ' m');
+    this.distText.setText('距' + this.goalLabel + ' ' + Math.max(0, Math.round((p.y - this.goalY) / 10)) + ' m');
 
-    // ---- 结束判定 ----
-    if (s.battery <= 0) { this.batteryDead(); return; }
+    // ---- 结束判定（梦里不会没电）----
+    if (!this.dream && s.battery <= 0) { this.batteryDead(); return; }
     if (this.policeY && !this.policeDone && p.y <= this.policeY + 50) { this.police(); return; }
     if (p.y <= this.goalY) { this.arrive(); return; }
 
@@ -261,7 +289,9 @@ class Ride extends Phaser.Scene {
     const r = policeCheck(s.passenger);
     if (r.fines.length) UI.sfx(this, 'pay');
     UI.updateHud(this);
-    UI.alert(this, LINES.police.stop + '\n\n' + policeText(r), () => {
+    // 去后湖的路上碰上的，先交代一句场景
+    const head = this.trip ? LINES.police.houhu + '\n\n' : '';
+    UI.alert(this, head + LINES.police.stop + '\n\n' + policeText(r), () => {
       // 罚款可能把钱扣到 ≤ 0 → 隐藏结局
       const key = hiddenEndingKey();
       if (key) { UI.fadeTo(this, 'Ending', { key }); return; }
@@ -355,13 +385,16 @@ class Ride extends Phaser.Scene {
     let o;
 
     if (type === 'delivery') {
-      // 外卖车：从后面冲上来
-      o = this.addCar(type, 'npc_delivery', lane, bottom + 60, -CONFIG.ride.speed * 1.7);
+      // 外卖车：从后面冲上来（梦里不抢行，只正常开）
+      const rush = this.dream ? 1.1 : 1.7;
+      o = this.addCar(type, 'npc_delivery', lane, bottom + 60, -CONFIG.ride.speed * rush);
       if (!o) return;
-      // 屏幕底部闪一个"！"，提醒后面有车冲上来
-      const warn = this.add.text(o.x, 530, '！', UI.style(30, '#f97316'))
-        .setOrigin(0.5, 1).setScrollFactor(0).setDepth(900);
-      this.tweens.add({ targets: warn, alpha: 0, duration: 900, onComplete: () => warn.destroy() });
+      if (!this.dream) {
+        // 屏幕底部闪一个"！"，提醒后面有车冲上来
+        const warn = this.add.text(o.x, 530, '！', UI.style(30, '#f97316'))
+          .setOrigin(0.5, 1).setScrollFactor(0).setDepth(900);
+        this.tweens.add({ targets: warn, alpha: 0, duration: 900, onComplete: () => warn.destroy() });
+      }
     } else if (type === 'wrong') {
       // 逆行车：平时一半概率就在玩家这条道上，单行道路段概率更高
       // 没有专门的逆行图时，用"别的同学骑车"（rider 图 + 染色，不戴头盔）
@@ -434,6 +467,70 @@ class Ride extends Phaser.Scene {
     return this.oneWay && y > this.oneWayTopY && y < this.oneWayBotY;
   }
 
+  // ---------- 红绿灯 ----------
+  // 灯的相位：绿 → 黄 → 红 循环（时间从进场起算）
+  lightColor() {
+    const T = CONFIG.ride.trafficLight;
+    let t = (this.time.now + this.lightPhase) % (T.greenMs + T.yellowMs + T.redMs);
+    if (t < T.greenMs) return 'green';
+    if (t < T.greenMs + T.yellowMs) return 'yellow';
+    return 'red';
+  }
+
+  // 停止线 + 斑马线 + 路边灯箱（灯泡颜色每帧在 updateLight 里刷）
+  buildLight() {
+    const y = this.lightY;
+    const g = this.add.graphics().setDepth(3);
+    // 停止线（横跨路面）
+    g.fillStyle(0xffffff, 0.9).fillRect(this.ROAD_L, y, this.ROAD_R - this.ROAD_L, 6);
+    // 斑马线（停止线上方，玩家过来先看到）
+    g.fillStyle(0xffffff, 0.55);
+    for (let x = this.ROAD_L + 14; x < this.ROAD_R; x += 34) g.fillRect(x, y - 58, 20, 40);
+    // 灯箱：路右边一根杆 + 三个灯泡位置
+    this.lightBulbs = {};
+    const px = this.ROAD_R + 26;
+    g.fillStyle(0x1f2937, 1).fillRect(px - 3, y - 52, 6, 52);          // 灯杆
+    g.fillStyle(0x111827, 1).fillRoundedRect(px - 10, y - 78, 20, 52, 6); // 灯箱
+    const colors = { red: 0xef4444, yellow: 0xfacc15, green: 0x22c55e };
+    for (const c of ['red', 'yellow', 'green']) {
+      this.lightBulbs[c] = this.add.circle(px, y - 66 + ['red', 'yellow', 'green'].indexOf(c) * 17, 6, colors[c])
+        .setDepth(4).setAlpha(0.15);
+    }
+    this.add.text(px + 16, y - 40, '红灯停', UI.style(14, '#fca5a5')).setOrigin(0, 1);
+  }
+
+  // 每帧刷新灯泡显示
+  updateLight() {
+    const c = this.lightColor();
+    for (const k in this.lightBulbs) this.lightBulbs[k].setAlpha(k === c ? 1 : 0.15);
+  }
+
+  // 玩家过停止线：红灯（含黄灯）算闯灯，按概率被抓拍
+  checkLightPass() {
+    if (this.lightPassed || !this.lightY || this.ending) return;
+    const p = this.player;
+    if (p.y > this.lightY) return;   // 还没过线
+    this.lightPassed = true;
+    const c = this.lightColor();
+    if (c === 'green') return;
+    // 闯红灯了：先闪光灯吓一下，稍后罚单寄到
+    const T = CONFIG.ride.trafficLight;
+    if (Math.random() >= T.catchChance) return;
+    this.cameras.main.flash(180, 255, 255, 255);
+    UI.sfx(this, 'whistle');
+    UI.say(this, LINES.ride.lightFlash, this.player);
+    this.time.delayedCall(1800, () => {
+      if (this.ending) return;   // 快到终点被别的结算抢先就算了
+      addFine(LINES.ride.lightFineReason, T.fine);
+      UI.sfx(this, 'pay');
+      UI.updateHud(this);
+      UI.alert(this, LINES.ride.lightFineHead.replace('{m}', T.fine), () => {
+        const k = hiddenEndingKey();   // 罚到没钱 → 隐藏结局
+        if (k) UI.fadeTo(this, 'Ending', { key: k });
+      });
+    });
+  }
+
   // ---------- 车道交通规则（车和车不开物理碰撞，靠这些规则避免穿模）----------
   // 占着车道 lane 的车：本来在这条道，或正在换进 / 换出这条道
   inLane(o, lane) {
@@ -493,6 +590,13 @@ class Ride extends Phaser.Scene {
       const changing = Math.abs(lane - o.x) > 0.5;
       if (changing) o.x = Math.abs(lane - o.x) <= shift ? lane : o.x + Math.sign(lane - o.x) * shift;
 
+      // 红灯（含黄灯）：同向车在停止线前排队；逆行车（往下开）不看这个灯
+      if (this.lightY && this.lightColor() !== 'green' && speed < 0 &&
+          o.y > this.lightY && o.y - this.lightY < CONFIG.ride.followGap) {
+        o.setVelocityY(0);
+        return;
+      }
+
       const front = this.carAhead(o);
       if (!front) { o.setVelocityY(speed); return; }   // 前面空了，恢复正常车速
       // 前车的速度夹在 [自己的速度, 0] 之间：同向慢车 → 跟着排队；迎面来车 / 停着的车 → 停下
@@ -514,8 +618,9 @@ class Ride extends Phaser.Scene {
     });
   }
 
-  // 行人：再走一步就进某辆车的道、而那辆车在 followGap 内驶近（或正挡着）→ 停一下，车过去再走
+  // 行人：红灯（含黄灯）在路边等灯；绿灯再看车让行——再走一步就进某辆车的道、而那辆车在 followGap 内驶近（或正挡着）→ 停一下，车过去再走
   walkerStep(o, speed) {
+    if (this.lightY && this.lightColor() !== 'green') { o.setVelocityX(0); return; }
     const nextX = o.x + Math.sign(speed) * 40;   // 往前看一步
     let wait = false, inPath = false;
     this.npcs.getChildren().forEach(c => {
@@ -561,6 +666,7 @@ class Ride extends Phaser.Scene {
 
   // ---------- 被撞 ----------
   onHit(o) {
+    if (this.dream) return;   // 梦里大家都守规矩，撞不到一起
     if (this.fallen || this.getting || this.ending || UI.busy || o.getData('hit')) return;
     if (this.time.now < this.invUntil) return;
     o.setData('hit', true);   // 同一个障碍只撞一次
@@ -573,10 +679,50 @@ class Ride extends Phaser.Scene {
 
     if (GameState.hp <= 0) { this.fall(); return; }
 
+    // 没摔死：可能触发"争辩判责"（按交通规范判这事儿谁负责）
+    if (Math.random() < CONFIG.ride.dispute.chance) {
+      this.dispute(o.getData('type'));
+      this.invUntil = this.time.now + CONFIG.ride.invincibleMs;
+      return;
+    }
     UI.say(this, LINES.ride.hit, this.player);
     this.invUntil = this.time.now + CONFIG.ride.invincibleMs;
     this.tweens.add({ targets: this.player, alpha: 0.2, duration: 100, yoyo: true,
       repeat: Math.floor(CONFIG.ride.invincibleMs / 200) - 1, onComplete: () => this.player.setAlpha(1) });
+  }
+
+  // ---------- 争辩判责 ----------
+  // 撞上 type 类型的障碍后随机出题：判对和平解决；判错对方报警（等交警 + 自己有责任时吃罚单）
+  dispute(type) {
+    const D = CONFIG.ride.dispute;
+    const all = LINES.dispute.questions;
+    const fit = all.filter(q => q.types && q.types.includes(type));
+    const q = UI.rand(fit.length ? fit : all);
+    this.player.setVelocity(0);
+    UI.choice(this, q.q, q.opts, i => {
+      if (i === q.answer) {
+        GameState.clock += D.settleMinutes;   // 说清楚了，各走各的
+        UI.say(this, q.right, this.player);
+      } else if (q.fault) {
+        // 判错 + 事故里自己有责任：对方报警，交警按交规罚自己
+        GameState.clock += D.alarmMinutes;
+        addFine(q.reason, q.fine);
+        UI.sfx(this, 'policeVoice');
+        UI.sfx(this, 'pay');
+        UI.updateHud(this);
+        UI.alert(this, q.wrong + '\n' + LINES.dispute.fineLine.replace('{m}', q.fine), () => {
+          const k = hiddenEndingKey();   // 罚到没钱 → 隐藏结局
+          if (k) UI.fadeTo(this, 'Ending', { key: k });
+        });
+        return;
+      } else {
+        // 判错但责任在对方：白等一场交警
+        GameState.clock += D.alarmMinutes;
+        UI.sfx(this, 'policeVoice');
+        UI.say(this, q.wrong, this.player);
+      }
+      this.invUntil = this.time.now + 1500;
+    });
   }
 
   // ---------- 摔倒 / 扶车 ----------
@@ -651,9 +797,22 @@ class Ride extends Phaser.Scene {
     const s = GameState;
     this.ending = true;
     s.battery = 0;
-    s.late = true;
     s.clock += CONFIG.ride.deadBatteryMinutes;
     UI.hint(this, null);
+    const dead = () => UI.say(this, LINES.ride.dead, this.player);
+    // 短途骑行没电：不记上午迟到（latePM 由到教室的钟点判），推到目的地接着走流程
+    if (this.trip) {
+      dead();
+      if (this.trip === 'back') {
+        // 回教学楼的路上没电：推过去直接进教室
+        this.time.delayedCall(1600, () => UI.fadeTo(this, 'Class', { part: 'afternoon' }));
+      } else {
+        this.time.delayedCall(1600, () => UI.fadeTo(this, 'Park',
+          { place: this.place, meal: this.meal, evening: this.evening, pushing: true }));
+      }
+      return;
+    }
+    s.late = true;
     if (s.passenger) {
       // 没电了，同学自己走了，钱也没给
       s.passenger = false;
@@ -672,6 +831,13 @@ class Ride extends Phaser.Scene {
     this.ending = true;
     UI.hint(this, null);
     this.player.setVelocity(0);
+    if (this.dream) { this.dreamWake(); return; }   // 彩蛋：梦到教学楼就醒了
+    if (this.trip) {
+      // 短途骑行：到了地方停车（吃饭 / 自习）；回程直接进下午课
+      if (this.trip === 'back') UI.fadeTo(this, 'Class', { part: 'afternoon' });
+      else UI.fadeTo(this, 'Park', { place: this.place, meal: this.meal, evening: this.evening, pushing: false });
+      return;
+    }
     if (s.passenger) {
       // 安全送到，拿报酬
       s.passenger = false;
@@ -683,5 +849,16 @@ class Ride extends Phaser.Scene {
     } else {
       UI.fadeTo(this, 'Park', { pushing: false });
     }
+  }
+
+  // ---------- 彩蛋：梦醒了 ----------
+  dreamWake() {
+    GameState.clockPaused = false;
+    this.time.delayedCall(900, () => {
+      UI.alert(this, LINES.ride.dreamWake, () => {
+        newGame();
+        UI.fadeTo(this, 'Title');
+      });
+    });
   }
 }

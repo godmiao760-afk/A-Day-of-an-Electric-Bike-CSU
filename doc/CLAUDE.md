@@ -119,10 +119,17 @@ UI.rand(arrOrStr)             // 数组随机取一个
 Boot → Title → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ 到达 → Park {pushing:false} ─┐
                                                     └─ 没电 → Park {pushing:true}  ─┤
    Class{morning} ←─────────────────────────────────────────────────────────────────┘
-   → Node{noon} → Class{afternoon} ─┬─ 第 totalDays 天 → Ending{ key: finalEndingKey() }
-                                    └─ 其他天 → Node{evening} → Charge → Result → [F] Intro{lastCharge}（第二天）
+   → Node{noon} ─┬─ 食堂 / 后湖 / 图书馆 → Ride{trip} → Park{place, meal, evening} → interlude（吃饭 / 自习结算）
+                 │        ├─ 中午（evening=false）→ Ride{trip:'back'} → Class{afternoon}
+                 │        └─ 傍晚（evening=true）→ Charge
+                 └─ 办牌照 / 不吃 → 直接结算 → Class{afternoon}
+   Class{afternoon} ─┬─ 第 totalDays 天 → Ending{ key: finalEndingKey() }
+                     └─ 其他天 → Node{evening} ─┬─ 食堂 / 后湖 / 图书馆 → Ride{trip} → Park{…} → interlude → Charge
+                                                 └─ 不吃 → Charge
+   Charge → Result → [F] Intro{lastCharge}（第二天）
 
 随时：饥饿 ≤ 0 / 钱 ≤ 0 → Ending{faint / broke}；硬闯被抓 → Ending{police}。Ending 按 F → newGame() → Intro
+彩蛋：Ending{perfect} 按 F → Ride{dream:true}（小电驴的梦）→ 梦醒 → newGame() → Title
 ```
 
 - **5 天制**：`CONFIG.ending.totalDays` 天（演示可改 3）。最后一天下午课结束直接进最终结局，不再有傍晚、充电、结算。
@@ -131,7 +138,7 @@ Boot → Title → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ �
   - 预兆：饥饿 < `hunger.faintWarn` 显示 `LINES.faintWarn`（Intro / Class）；钱 < `money.lowWarn` HUD 变红；硬闯成功独白 `police.runOmen`。
 - **Node**（NodeScene.js，类名 NodeScene、场景 key 'Node'，因为 Node 和浏览器全局重名）：纯菜单。
   - gate 校门口：先给校内、校外各掷一次 `ride.oneWay.chance`（今天哪条路被挤成单行道），堵的在问题里透露 `gate.rumorInside / rumorOutside`，选完路线把 `{ oneWay }` 传给 Ride。同学求搭车（第 1 天必出现，之后按 `passenger.chance`）。答应 → passenger=true，强制走校外；否则选 校内 / 校外 / 背包。
-  - noon / evening：食堂、后湖（耗电 `places.houhu.battery`，今天有交警时按 `encounterChance` 可能碰上）、办牌照（仅中午）、不吃、背包。钱或电不够的选项置灰；花完钱会 ≤ 0 的不置灰，label 加 `meals.lastMoney`。每个选项按 `places.<id>.minutes` 随机加时间（label 显示"约 N 分钟"），不吃 = 0；中午花完晚于 `afternoonClass`（14:00）下午就迟到。
+  - noon / evening：食堂、后湖（耗电 `places.houhu.battery`）、办牌照（仅中午）、图书馆（仅傍晚，不花钱不吃饭）、不吃、背包。钱或电不够的选项置灰；花完钱会 ≤ 0 的不置灰，label 加 `meals.lastMoney`。每个选项按 `places.<id>.minutes` 随机加时间（label 显示"约 N 分钟"，实际在到达后的 interlude 里加），不吃 = 0；中午花完晚于 `afternoonClass`（14:00）下午就迟到。**食堂 / 后湖 / 图书馆不是菜单结算**：选了先 `UI.fadeTo(this, 'Ride', { trip, place, meal, evening })` 真的骑过去（后湖路线有 `policeAt`，碰上交警在 Ride 里查，弹窗加 `police.houhu` 一句），停好车后在 Park 的 interlude 里结算钱 / 饥饿 / 时间。
 - **交警**：`policeToday` 每天掷一次（第 1 天必有）。有交警的日子，校外骑行、中午后湖、傍晚后湖**各自再掷一次** `police.encounterChance`，碰上才查（第 1 天校外骑行必碰上）。校外路线检查点在 `policeAt` 处。碰上先二选一（`police.askStop`）：
   - **停车受检**（`optStop`）：`policeCheck()`，没戴头盔 / 没牌照 / 载人各罚一笔，被罚耽误 `delayMinutes`；载人被罚 → 同学跑掉不给钱。
   - **硬闯**（`optRun`）：`tryRun()`，被抓 → Ending police；闯过去不罚款、不耽误时间、runs+1，同学不跑。Ride 里路障变淡、给 `ride.runProtectMs` 保护。
@@ -144,19 +151,26 @@ Boot → Title → Intro → FindCar → Node{gate} → Ride{oneWay} ─┬─ �
 - **FindCar**：7:35 开始。车阵中有一辆是自己的（位置随机，左右被夹住）。按 F 查看，认出后变黄；要先挪开一辆邻车（每辆 +`moveCarMinutes` 分钟）才能解锁。越近"滴滴"越快 + 右上角信号格。无失败条件。
   - **多米诺**：挪开邻车时按 `findCar.dominoChance` 带倒同一排，往远离自己车的方向（最多 `dominoMax` 辆，遇到挪开的 / 倒着的 / 排尾停）；走路蹭到不触发。靠近按 F 扶起（每辆 +`liftMinutes`），**全部扶起才能解锁**。文案复用 `LINES.park.domino / lift / liftFirst / liftHint / liftedAll`。
 - **Ride**：纵向长路，W 前进 S 刹车 A/D 换道（加减速按 delta 换算，和帧率无关）。只在移动时耗电，坡道更快更慢。障碍：外卖车（后方冲上）、逆行车（迎面）、行人（横穿）、校车（慢、大）、汽车（校外）。被撞 hp−1 + 无敌闪烁；hp=0 摔倒，连按 F 扶车 → 回满血、掉 `fallBatteryCost` 电、falls+1。电量 ≤ 0 → late=true、clock+`deadBatteryMinutes` → 推车进 Park。到顶 → Park。
+  - **短途骑行**（v3）：`data.trip` = 'canteen' | 'houhu' | 'library' | 'back'，走 `CONFIG.ride.routes.<trip>`（路短车少，当过场）。到顶：back → Class{afternoon}；其他 → Park{place, meal, evening}。没电推车同样处理（back 不记上午迟到，下午迟到由到教室钟点判）。路上终点名 `LINES.ride.tripGoal[trip]`、出发独白 `LINES.ride.tripStart[trip]`。
+  - **红绿灯**（v3）：路线 `lightAt`（路程比例，null = 没有）处有停止线 + 斑马线 + 灯箱，相位绿 → 黄 → 红（`trafficLight.{greenMs, yellowMs, redMs}`，起始随机）。红灯 / 黄灯：同向 NPC 和行人都停在停止线前。玩家过线时是红灯 / 黄灯 → 按 `catchChance` 被抓拍：白屏闪光 + `ride.lightFlash`，1.8 秒后弹罚单（罚 `fine`，记 `fines`；罚到没钱 → 隐藏结局）。梦里没有灯。
+  - **争辩判责**（v3）：被撞（没摔死）后按 `dispute.chance` 触发——按撞上的障碍类型从 `LINES.dispute.questions`（带 `types` 适配）随机出题，玩家按交通规范判"这事儿谁负责"。判对：和平解决，clock +`settleMinutes`；判错：对方报警 clock +`alarmMinutes`，且事故里自己有责任（`fault`）时吃罚单（`fine`，`reason` 记进 `fines`，罚到没钱 → 隐藏结局）。梦里不触发。
   - **车道规则**（不开车车物理碰撞，`trafficStep` 每帧跑）：生成时出生点 `followGap` 内同道有车就换道，四条都有就不生成；汽车 / 校车追上前车减速排队；外卖车换到相邻空道超车；逆行车迎面有车就躲，躲不开就停；行人前方有车驶近就在路边等。换道横向速度 `laneChangeSpeed`。
   - **单行道**（Node 传 `{ oneWay: true }` 时）：路程 `oneWay.range` 这段路面标红、路边立牌 `ride.oneWaySign`，进入时独白 `oneWayEnter`；段内逆行权重 × `wrongMul`，逆行车出现在玩家这条道的概率从 `wrongSameLane` 提到 `sameLaneChance`。
-- **Park**：车棚大多满，`freeSlots` 个空位（不在入口附近）。推车时速度减半、显示"已迟到"。站到空位按 F 停车 → 记录 arriveClock，晚于 8:00 则 late=true。
-  - **多米诺**：骑 / 推着车撞到别人的车，按 `dominoChance` 从被撞那辆开始往远离玩家的方向倒一排（最多 `dominoMax` 辆，遇到空位 / 排尾停）。靠近倒着的车按 F 扶起（每辆 +`liftMinutes` 分钟）；没扶完不能停车。
-  - **门口违停**：入口旁红色"禁停"区，按 F → 二选一。停了照常记 arriveClock / 迟到，然后按 `ticketChance` 被保安贴条：罚 `ticketFine`，记进 `fines`（不算 spent）。
+- **Park**：`data.place` 选场景（teach 教学楼车棚 / canteen 食堂 / houhu 后湖 / library 图书馆），布局参数在 `CONFIG.park.places.<place>`（perRow 每排车位数、free 空位数、domino 撞车倒不倒、illegal 有没有门口禁停区）。教学楼车满为患只有 2 个空位 + 完整玩法（多米诺、违停）；食堂 / 后湖 / 图书馆是简易停车（空位多、撞不倒、没有禁停区）。推车时速度减半、教学楼显示"已迟到"。站到空位按 F 停车 → 教学楼记录 arriveClock（晚于 8:00 则 late=true）；其他场景不覆盖上午的记录。
+  - **interlude**（v3，非 teach 场景停好车后）：按 `data.meal` 结算——canteen / houhu 花钱加饱加时间（后湖路上被罚到吃不起 → `meals.fineNoFood`）、library 只加时间、文案 `meals.{ateCanteen, ateHouhu, studied}`。弹窗关掉时查隐藏结局；中午 → `Ride{trip:'back'}` 回教学楼，傍晚 → Charge。
+  - **多米诺**：骑 / 推着车撞到别人的车（只在 domino: true 的场景），按 `dominoChance` 从被撞那辆开始往远离玩家的方向倒一排（最多 `dominoMax` 辆，遇到空位 / 排尾停）。靠近倒着的车按 F 扶起（每辆 +`liftMinutes` 分钟）；没扶完不能停车。
+  - **门口违停**（只在 illegal: true 的场景）：入口旁红色"禁停"区，按 F → 二选一。停了照常记 arriveClock / 迟到，然后按 `ticketChance` 被保安贴条：罚 `ticketFine`，记进 `fines`（不算 spent）。
 - **Class**：上午课 late 为 true → lateCount+1；下午课 clock > `afternoonClass` → latePM=true、lateCount+1。显示到教室时间、`classScene.lateTotal`；扣 `perClass` 饥饿。上午课结束时钟跳到 12:00；下午课结束扣 `dayDrain` 电，时钟跳到 17:30。之后：隐藏结局 > 最后一天下午 → 最终结局 > 照常进 Node。
 - **Charge**：到 23:00 门禁。桩状态随机：被占 / 坏了 / 扫码失败（第一次必失败，之后按概率成功）/ 空闲。插上就回宿舍（没有"守着"了）：`gambleWinRate` 充满（'full'），否则只 +`unpluggedGain`%（'unplugged'）；当场只说 `charge.plugged`，HUD 冻住不露结果，第二天 Intro 揭晓。门禁前没插上 → 'none'。
 - **Result**（今日评价，不影响最终结局）：充上电 = battery ≥ `chargedThreshold`。评价（`LINES.endings`）：准时+充上「难得顺利的一天」；准时+没充上「明天早上见分晓」；迟到+充上「至少明天有电了」；迟到+没充上「明天还得推车」（"准时 / 迟到"只看上午）。多两行：下午准时 / 迟到、累计迟到次数。F 开始第二天（保留电量、钱、饥饿、背包、lateCount、runs；过夜饿 `overnight`，到账 `allowance`），R 重新开始。
 - **Ending**（Ending.js）：`init(data)` 读 `data.key`（默认 'pass'）。显示 `end_<key>` 图（真图是 `assets/img/ending-backgrounds/` 下 1536×1024 整幅插画：同一张图模糊压暗铺满当背景，中间缩成 378×252 带框插画卡；没图用 320×240 色块，派出所没图时退回 `bg_police` 当背景）、`LINES.finalEnding[key]` 的 title / text、统计 `LINES.endingUi.stats`（第几天、累计迟到、硬闯成功次数、余额）。1.2 秒后按 F 或点击 → `newGame()` → Intro。
+- **彩蛋 · 小电驴的梦**（v3）：完美结局按 F → `Ride{dream:true}`，按 F 的提示换成 `endingUi.dreamRestart`。梦里走 `CONFIG.ride.routes.dream`：没有逆行车、外卖车不抢行、撞不到人（onHit 直接返回）、不耗电、时钟暂停、没有交警和单行道；到顶 `dreamWake()` 弹 `ride.dreamWake` → `newGame()` → Title。
 
 **v2 新增的数值 / 文案**（调数值、改文字时找这些）：
 - CONFIG：`afternoonClass`、`ending.{totalDays, passMaxLate}`、`money.lowWarn`、`hunger.faintWarn`、`places.*.minutes`、`police.{runCatchBase, runCatchStep, runCatchMax}`、`findCar.{dominoChance, dominoMax, dominoDelayMs, liftMinutes}`、`ride.{followGap, laneChangeSpeed, wrongSameLane, runProtectMs, oneWay}`；`charge.watchPerMinute` 已删。
 - LINES：`intro.{lateCount, lastDay}`、`gate.{rumorInside, rumorOutside}`、`police.{askStop, optStop, optRun, runOk, runOmen}`、`meals.{lastMoney, takes}`、`ride.{oneWaySign, oneWayEnter}`、`classScene.lateTotal`、`charge.plugged`、`faintWarn`、`finalEnding.<key>.{title, text}`、`endingUi.{stats, restart}`。注意 `endings` 是每日评价，`finalEnding` 才是最终结局。
+
+**v3 新增**（彩蛋 + 中午 / 傍晚骑行停车 + 红绿灯 + 争辩判责）：CONFIG `ride.routes.{dream, canteen, houhu, back, library}`（routes 带 `side`、`lightAt` 字段）、`ride.trafficLight`、`ride.dispute`、`places.library`、`park.places.<place>`（`park.freeSlots` 已删，改看各场景的 free）；LINES `ride.{dreamStart, dreamWake, tripGoal, tripStart, lightFlash, lightFineHead, lightFineReason}`、`dispute`（题目库）、`meals.{library, studied}`、`park.places`、`endingUi.dreamRestart`。
 
 ## 9. 素材约定（C）
 

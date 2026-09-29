@@ -22,8 +22,8 @@ const CONFIG = {
   },
 
   ending: {
-    totalDays: 3,            // 第几天下午课结束判最终结局（展示用 3 天；正式版 5）
-    passMaxLate: 3           // 迟到 0 次 = 完美；≤ 此值 = 合格；更多 = 不合格（一天最多迟到 2 次；5 天制时用 5）
+    totalDays: 5,            // 第几天下午课结束判最终结局（演示可改 3）
+    passMaxLate: 5           // 迟到 0 次 = 完美；≤ 此值 = 合格；更多 = 不合格（一天最多迟到 2 次；演示 3 天制时用 3）
   },
 
   money: {
@@ -44,7 +44,8 @@ const CONFIG = {
     // minutes：去一趟花多少游戏分钟（随机区间）；中午花完晚于 14:00 下午就迟到
     canteen: { cost: 12, food: 45, minutes: [40, 60] },                // 食堂
     houhu:   { cost: 25, food: 70, battery: 10, minutes: [90, 130] },  // 后湖：贵、吃得饱、要骑车过去耗电
-    license: { cost: 30, minutes: [100, 140] }                         // 办牌照
+    license: { cost: 30, minutes: [100, 140] },                        // 办牌照
+    library: { cost: 0, minutes: [60, 90] }                            // 图书馆自习：不花钱不吃饭，只花时间（傍晚）
   },
   police: {
     chance: 0.5,             // 第 2 天起，每天有交警的概率（第 1 天必有）
@@ -129,24 +130,68 @@ const CONFIG = {
     // 早高峰单行道：每天每条路线掷一次 chance；range 路段（路程比例）里逆行权重 × wrongMul，
     // 逆行车出现在玩家这条道的概率变成 sameLaneChance（平时 0.5）
     oneWay: { chance: 0.5, range: [0.3, 0.7], wrongMul: 3, sameLaneChance: 0.8 },
+    // 红绿灯：绿 → 黄 → 红 循环；红灯（含黄灯）时 NPC 停在停止线前，玩家闯线按 catchChance 被抓拍罚款
+    trafficLight: {
+      greenMs: 6000, yellowMs: 1500, redMs: 5000,
+      catchChance: 0.6,        // 闯红灯被抓拍的概率
+      fine: 20                 // 闯红灯罚款
+    },
+    // 争辩判责：被撞后可能触发，按交通规范判"这事儿谁负责"
+    // 判对：和平解决（+settleMinutes）；判错：对方报警（+alarmMinutes），事故里自己有责任的还要吃罚单
+    dispute: {
+      chance: 0.35,            // 被撞后触发争辩的概率
+      settleMinutes: 3,        // 判对：说清楚各走各的，耽误的分钟
+      alarmMinutes: 10         // 判错：等交警来处理的分钟
+    },
     routes: {
       // length 路长（像素）；spawnEvery 平均每隔多少毫秒生成障碍；slope 坡道起止（路程比例，null=没坡）
       // policeAt 交警检查点位置（路程比例，null=没有）；npc 各类障碍出现权重
       // landmarkAt 体育场那张路图的中心位置（路程比例，null=没有）
+      // lightAt 红绿灯停止线位置（路程比例，null=没有）
+      // side 没有路图时的两侧色块（grass 草地 / road 街道）
       inside: {
-        length: 7200, spawnEvery: 1100, slope: [0.45, 0.65], policeAt: null, landmarkAt: 0.25,
+        length: 7200, spawnEvery: 1100, slope: [0.45, 0.65], policeAt: null, landmarkAt: 0.25, lightAt: 0.22, side: 'grass',
         npc: { delivery: 2, wrong: 2.5, walker: 3.5, bus: 2, car: 0 }
       },
       outside: {
-        length: 4000, spawnEvery: 900, slope: null, policeAt: 0.55, landmarkAt: null,
+        length: 4000, spawnEvery: 900, slope: null, policeAt: 0.55, landmarkAt: null, lightAt: 0.3, side: 'road',
         npc: { delivery: 3.5, wrong: 2.5, walker: 1, bus: 0, car: 3 }
+      },
+      // 完美结局彩蛋"小电驴的梦"：没有逆行车，车都守规矩（场景里另关掉碰撞伤害 / 耗电 / 时钟）
+      dream: {
+        length: 4200, spawnEvery: 1500, slope: null, policeAt: null, landmarkAt: 0.3, lightAt: null, side: 'grass',
+        npc: { delivery: 1, wrong: 0, walker: 3, bus: 2, car: 1 }
+      },
+      // 中午 / 傍晚的短途骑行（都是过场，路短、车少）
+      canteen: {
+        length: 2200, spawnEvery: 1600, slope: null, policeAt: null, landmarkAt: null, lightAt: 0.4, side: 'grass',
+        npc: { delivery: 0.5, wrong: 1, walker: 3, bus: 1, car: 0 }
+      },
+      houhu: {
+        length: 3200, spawnEvery: 1100, slope: null, policeAt: 0.5, landmarkAt: null, lightAt: 0.3, side: 'road',
+        npc: { delivery: 2, wrong: 1.5, walker: 1, bus: 0, car: 2 }
+      },
+      back: {
+        length: 2600, spawnEvery: 1400, slope: null, policeAt: null, landmarkAt: null, lightAt: 0.5, side: 'grass',
+        npc: { delivery: 1, wrong: 1, walker: 3, bus: 1.5, car: 0 }
+      },
+      library: {
+        length: 2400, spawnEvery: 1500, slope: null, policeAt: null, landmarkAt: null, lightAt: 0.45, side: 'grass',
+        npc: { delivery: 0.5, wrong: 1, walker: 3.5, bus: 1, car: 0 }
       }
     }
   },
   park: {
     rideSpeed: 120,          // 车棚里骑车速度
     pushSpeedFactor: 0.5,    // 推车速度倍率
-    freeSlots: 2,            // 空车位数量
+    // 各停车场景：perRow 每排车位数、free 空位数、domino 撞车会不会倒一排、illegal 有没有门口禁停区
+    // 教学楼车满为患只有 2 个空位 + 完整玩法；食堂 / 后湖 / 图书馆都是简易停车（好停、撞不倒）
+    places: {
+      teach:   { perRow: 28, free: 2, domino: true,  illegal: true },
+      canteen: { perRow: 10, free: 4, domino: false, illegal: false },
+      houhu:   { perRow: 8,  free: 3, domino: false, illegal: false },
+      library: { perRow: 10, free: 3, domino: false, illegal: false }
+    },
     // 多米诺：骑 / 推着车撞到别人的车，可能倒一排，全部扶起来才能停车
     dominoChance: 0.5,       // 撞上一次倒下的概率
     dominoMax: 6,            // 最多连着倒几辆（遇到空位或排尾就停）
