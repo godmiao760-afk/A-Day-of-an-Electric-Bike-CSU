@@ -54,7 +54,7 @@ class NodeScene extends Phaser.Scene {
           UI.say(this, LINES.passenger.no);
           this.time.delayedCall(600, () => this.pickRoute());
         }
-      });
+      }, 'passenger');
     } else {
       this.pickRoute();
     }
@@ -69,7 +69,7 @@ class NodeScene extends Phaser.Scene {
         if (i === 0) this.go('inside');
         else if (i === 1) this.go('outside');
         else UI.backpack(this, () => this.pickRoute());   // 看完背包回来继续选
-      });
+      }, 'route');
   }
 
   go(route, text) {
@@ -124,7 +124,7 @@ class NodeScene extends Phaser.Scene {
       } else {
         this.finish(M.skipped);
       }
-    });
+    }, 'meal');
   }
 
   finish(text) {

@@ -65,7 +65,11 @@ class FindCar extends Phaser.Scene {
     this.signal = this.add.text(948, 56, '', UI.style(16, '#86efac', {
       backgroundColor: 'rgba(0,0,0,0.6)', padding: { x: 8, y: 3 }
     })).setOrigin(1, 0).setScrollFactor(0).setDepth(1000);
-    this.nextBeep = 0;
+    // 找车提示：常驻单个实例，音量在 update 里每帧跟随距离。
+    // 不能像 v3 那样每 500ms 重新 add + play：素材本身 4s（内含 4 声），重启会让多路音频叠在一起。
+    this.beep = this.sound.add('beep', { loop: true, volume: 0 });
+    this.beep.play();
+    this.events.once('shutdown', () => this.beep.destroy());
     this.done = false;
     const ctl = this.add.text(12, 510, LINES.findCar.controls, UI.style(14, '#ffffff', {
       backgroundColor: 'rgba(0,0,0,0.65)', padding: { x: 8, y: 3 }
@@ -102,16 +106,15 @@ class FindCar extends Phaser.Scene {
     this.updateWalkAnimation(d);
     this.player.setDepth(this.player.y);
 
-    // ---- 找车提示：固定频率，距离只改变音量和信号格 ----
+    // ---- 找车提示：距离只改变音量（每帧跟随，响度不滞后）和信号格 ----
     const dist = Phaser.Math.Distance.BetweenPoints(this.player, this.myBike);
     const C = CONFIG.findCar;
     const level = Phaser.Math.Clamp(5 - Math.floor(dist / C.signalStep), 1, 5);
     this.signal.setText(LINES.findCar.signal + '▮'.repeat(level) + '▯'.repeat(5 - level));
-    if (time > this.nextBeep) {
-      const beepVolume = Phaser.Math.Clamp(1 - dist / (C.signalStep * 5), 0.05, 1);
-      UI.sfx(this, 'beep', { volume: beepVolume });
-      this.nextBeep = time + 500;
-    }
+    // 距离反平方衰减：近处陡、远处迅速弱下来，比线性映射的听感差异明显得多
+    const vol = C.beepFloor + (1 - C.beepFloor) / (1 + Math.pow(dist / C.beepFalloff, 2));
+    // 60ms 线性斜坡，避免每帧跳变产生爆音
+    this.beep.setVolume(vol, 60, 'linear');
 
     // ---- 旁边有倒着的车：优先扶起来 ----
     const down = this.nearestFallen(64);
@@ -273,6 +276,7 @@ class FindCar extends Phaser.Scene {
   unlock() {
     if (this.done) return;
     this.done = true;
+    this.beep.stop();
     const C = CONFIG.findCar;
     this.player.setVelocity(0).disableBody(true, true);
     this.myBike.disableBody(true, true);

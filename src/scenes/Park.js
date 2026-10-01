@@ -278,7 +278,7 @@ class Park extends Phaser.Scene {
         this.time.delayedCall(1200, () => UI.say(this, L.noTicket, this.player));
         this.time.delayedCall(2600, toClass);
       }
-    });
+    }, 'illegal');
   }
 
   // ---- 多米诺：撞到别人的车，可能倒一排（collider 回调；简易停车场景撞不倒）----

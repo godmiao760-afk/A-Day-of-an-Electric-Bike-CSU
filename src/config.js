@@ -80,7 +80,8 @@ const CONFIG = {
     moveDuration: 350,
     mountDuration: 1000,
     signalStep: 120,
-    beepDistanceFactor: 1.6, beepMin: 140, beepMax: 1400,
+    beepFalloff: 180,        // 提示音的音量衰减尺度（像素）：越小近处越突出、远处衰减越快
+    beepFloor: 0.03,         // 最远处的音量下限（不是 0，留一点底噪让人知道设备还开着）
     walkSpeed: 160,          // 步行速度（像素/秒）
     moveCarMinutes: 1,       // 每挪开一辆车额外花的游戏分钟
     // 多米诺：挪开邻车时可能带倒一排，全部扶起来才能解锁
@@ -98,6 +99,14 @@ const CONFIG = {
     drainFlat: 0.8,          // 平路每秒耗电 %（路变短了，每秒耗电调高，一趟总耗电和 v1 差不多）
     drainSlope: 1.8,         // 坡道每秒耗电 %
     maxHp: 3,
+    // 被撞后的平衡：冒出左右方向，限时内按 A / D 稳住车，没稳住车就倒
+    balanceEnabled: true,
+    balance: {
+      windowMs: 900,         // 反应窗口
+      nudgeDeg: 26,          // 失手前车身最多歪多少度
+      failFall: true,        // true：失手直接倒；false：扣一血 + 掉电，只晃一下
+      okSwayMs: 260,         // 稳住之后晃两下的时长
+    },
     invincibleMs: 1000,      // 被撞后无敌时间
     pickupPresses: 5,        // 扶车需要按几次 F
     fallBatteryCost: 10,     // 每摔一次掉多少电

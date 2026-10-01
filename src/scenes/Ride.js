@@ -162,6 +162,7 @@ class Ride extends Phaser.Scene {
 
     // ---- 状态 ----
     this.invUntil = 0;
+    this.balance = null;      // 被撞后的稳车 QTE，非空时车停下来等人按 A / D
     this.fallen = false;
     this.getting = false;      // 扶正了、正停着准备骑上去
     this.presses = 0;
@@ -197,6 +198,9 @@ class Ride extends Phaser.Scene {
     this.trafficStep(delta);   // 车道让行规则：弹窗、摔倒时障碍照样在动，所以放在最前面每帧都跑
     if (this.lightY) { this.updateLight(); this.checkLightPass(); }   // 红绿灯：灯色刷新 + 闯灯判定
     if (UI.blocked(this) || this.ending) { this.player.setVelocity(0); return; }
+
+    // ---- 平衡：被撞之后车歪一下，限时按 A / D 稳住 ----
+    if (this.balance) { this.updateBalance(); return; }
 
     const R = CONFIG.ride;
     const s = GameState;
@@ -280,7 +284,7 @@ class Ride extends Phaser.Scene {
     const L = LINES.police;
     UI.choice(this, L.askStop, [L.optStop, L.optRun], i => {
       if (i === 0) this.policeStop(); else this.policeRun();
-    });
+    }, 'police');
   }
 
   // 停车接受检查：和 v1 一样，没头盔 / 没牌照 / 载人各罚一笔，被罚耽误时间
@@ -578,6 +582,7 @@ class Ride extends Phaser.Scene {
 
   // 每帧：排队、变道、躲让、行人等车
   trafficStep(delta) {
+    if (this.balance) return;   // 稳车时车停住了，别让别的车从身上碾过去
     const shift = CONFIG.ride.laneChangeSpeed * delta / 1000;   // 换道横向速度，够快才不会在换道途中蹭到前车
     this.npcs.getChildren().forEach(o => {
       if (!o.active) return;
@@ -668,15 +673,19 @@ class Ride extends Phaser.Scene {
   onHit(o) {
     if (this.dream) return;   // 梦里大家都守规矩，撞不到一起
     if (this.fallen || this.getting || this.ending || UI.busy || o.getData('hit')) return;
-    if (this.time.now < this.invUntil) return;
+    if (this.time.now < this.invUntil || this.balance) return;
     o.setData('hit', true);   // 同一个障碍只撞一次
 
-    GameState.hp -= 1;
     GameState.hits += 1;
     UI.sfx(this, 'hit');
     this.cameras.main.shake(150, 0.008);
     this.vy = 60;   // 被撞得往后退一下
 
+    // 先进入稳车：撞完这一次先扔给平衡环节处理，按对 / 按错再决定掉不掉血
+    if (CONFIG.ride.balanceEnabled && !this.balance) { this.startBalance(); return; }
+
+    // 关掉稳车时退回原来的扣血流程
+    GameState.hp -= 1;
     if (GameState.hp <= 0) { this.fall(); return; }
 
     // 没摔死：可能触发"争辩判责"（按交通规范判这事儿谁负责）
@@ -689,6 +698,74 @@ class Ride extends Phaser.Scene {
     this.invUntil = this.time.now + CONFIG.ride.invincibleMs;
     this.tweens.add({ targets: this.player, alpha: 0.2, duration: 100, yoyo: true,
       repeat: Math.floor(CONFIG.ride.invincibleMs / 200) - 1, onComplete: () => this.player.setAlpha(1) });
+  }
+
+  // ---------- 被撞后的稳车：冒出左右方向，限时按 A / D 把车扶正 ----------
+  // 车停下、车身慢慢歪过去（歪得越多越像要倒），进度条走完 / 按错方向就算失手。
+  startBalance() {
+    const B = CONFIG.ride.balance;
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    this.balance = { dir, start: this.time.now, ms: B.windowMs };
+    this.player.setVelocity(0);
+    const L = LINES.ride;
+    const arrow = this.add.text(480, 118, dir < 0 ? L.balanceLeft : L.balanceRight,
+      UI.style(72, '#fde047', { stroke: '#1f2937', strokeThickness: 8 }))
+      .setOrigin(0.5).setScrollFactor(0).setDepth(1200);
+    const tip = this.add.text(480, 190, L.balanceTip, UI.style(18, '#fca5a5'))
+      .setOrigin(0.5).setScrollFactor(0).setDepth(1200);
+    this.balObjs = [arrow, tip];
+    this.balBar = this.add.graphics().setScrollFactor(0).setDepth(1201);
+  }
+
+  updateBalance() {
+    const k = this.keys;
+    const left = Phaser.Input.Keyboard.JustDown(k.A) || Phaser.Input.Keyboard.JustDown(k.LEFT);
+    const right = Phaser.Input.Keyboard.JustDown(k.D) || Phaser.Input.Keyboard.JustDown(k.RIGHT);
+    if (left || right) {
+      if ((right ? 1 : -1) === this.balance.dir) this.balanceOk();
+      else this.balanceLose();
+      return;
+    }
+    const t = (this.time.now - this.balance.start) / this.balance.ms;
+    if (t >= 1) { this.balanceLose(); return; }
+    this.player.setVelocity(0).setAngle(this.balance.dir * CONFIG.ride.balance.nudgeDeg * t);
+    const g = this.balBar;
+    g.clear();
+    g.fillStyle(0x000000, 0.6).fillRect(370, 214, 220, 10);
+    g.fillStyle(t > 0.7 ? 0xef4444 : t > 0.45 ? 0xfacc15 : 0x22c55e, 1).fillRect(372, 216, 216 * (1 - t), 6);
+  }
+
+  clearBalance() {
+    this.balance = null;
+    if (this.balObjs) { this.balObjs.forEach(o => o.destroy()); this.balObjs = null; }
+    if (this.balBar) { this.balBar.destroy(); this.balBar = null; }
+  }
+
+  balanceOk() {
+    const B = CONFIG.ride.balance;
+    this.clearBalance();
+    this.vy = 0;
+    this.player.setAngle(0);
+    UI.say(this, LINES.ride.balanceOk, this.player);
+    this.tweens.add({ targets: this.player, angle: 5, duration: B.okSwayMs / 2, yoyo: true,
+      onComplete: () => this.player.setAngle(0) });
+    this.invUntil = this.time.now + CONFIG.ride.invincibleMs;
+  }
+
+  balanceLose() {
+    const B = CONFIG.ride.balance;
+    this.clearBalance();
+    this.vy = 0;
+    this.player.setAngle(0);
+    if (B.failFall) { this.fall(); return; }
+    // 关掉"失手即倒"时：扣一血 + 掉点电，车晃一下继续骑
+    GameState.hp -= 1;
+    GameState.battery -= CONFIG.ride.fallBatteryCost;
+    UI.updateHud(this);
+    UI.sfx(this, 'fall');
+    UI.say(this, LINES.ride.balanceNearly, this.player);
+    this.invUntil = this.time.now + CONFIG.ride.invincibleMs;
+    if (GameState.hp <= 0) this.fall();
   }
 
   // ---------- 争辩判责 ----------
@@ -722,7 +799,7 @@ class Ride extends Phaser.Scene {
         UI.say(this, q.wrong, this.player);
       }
       this.invUntil = this.time.now + 1500;
-    });
+    }, 'dispute');
   }
 
   // ---------- 摔倒 / 扶车 ----------

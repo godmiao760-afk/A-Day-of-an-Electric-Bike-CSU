@@ -231,7 +231,8 @@ const UI = {
   // options：字符串，或 { label, disabled }（disabled 的选项置灰、选不了）
   // 2 个选项横排（A/D 切换），3 个以上竖排（W/S 切换）。F 确认，也可以鼠标点。
   // 打开时时钟暂停；选完调用 onPick(序号)
-  choice(scene, question, options, onPick) {
+  // nudge：LINES.nudge 里的分组名，玩家发呆超过 3 秒时底部小字会换成交促文案（直到选出为止）
+  choice(scene, question, options, onPick, nudge) {
     UI.busy = true;
     const openedAt = scene.time.now;
     const D = 2000;
@@ -266,9 +267,23 @@ const UI = {
       objs.push(scene.add.rectangle(480, 270, 640, panelH, 0x1f2937).setStrokeStyle(3, 0xfacc15).setScrollFactor(0).setDepth(D));
     }
     objs.push(q);
-    objs.push(scene.add.text(480, panelTop + panelH - 20,
-      (vertical ? 'W / S' : 'A / D') + ' 选择，F 确认（也可以用鼠标点）', UI.style(14, art ? '#8a6a4a' : '#9ca3af'))
-      .setOrigin(0.5).setScrollFactor(0).setDepth(D + 1));
+    const tipText = (vertical ? 'W / S' : 'A / D') + ' 选择，F 确认（也可以用鼠标点）';
+    const tip = scene.add.text(480, panelTop + panelH - 20, tipText,
+      UI.style(14, art ? '#8a6a4a' : '#9ca3af'))
+      .setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
+    objs.push(tip);
+
+    // 发呆 3 秒就开始催，之后每 4 秒换一句，直到玩家真的选了
+    const tipColor = art ? '#8a6a4a' : '#9ca3af';
+    let nudgeTimer = null;
+    const nudgeTip = () => {
+      const pool = LINES.nudge[nudge] || LINES.nudge.generic;
+      tip.setText(UI.rand(pool)).setColor('#fca5a5');
+      scene.tweens.add({ targets: tip, x: 474, duration: 70, yoyo: true, repeat: 3,
+        onComplete: () => tip.setX(480) });
+      nudgeTimer = scene.time.delayedCall(4000, nudgeTip);
+    };
+    if (nudge) nudgeTimer = scene.time.delayedCall(3000, nudgeTip);
 
     const btns = opts.map((o, i) => {
       const x = vertical ? 480 : 480 + (i - (n - 1) / 2) * 260;
@@ -320,6 +335,8 @@ const UI = {
     function pick(i) {
       if (done) return;
       done = true;
+      if (nudgeTimer) { nudgeTimer.remove(false); nudgeTimer = null; }
+      tip.setText(tipText).setColor(tipColor);   // 催完收回去，别带着半句玩笑进下一屏
       keysPrev.forEach(k => kb.off(k, prev));
       keysNext.forEach(k => kb.off(k, next));
       kb.off('keydown-F', confirm);
@@ -334,8 +351,8 @@ const UI = {
   },
 
   // ---------- 提示弹窗：只有一个"继续" ----------
-  alert(scene, text, onClose) {
-    UI.choice(scene, text, ['继续'], () => { if (onClose) onClose(); });
+  alert(scene, text, onClose, nudge) {
+    UI.choice(scene, text, ['继续'], () => { if (onClose) onClose(); }, nudge);
   },
 
   // ---------- 背包 ----------
@@ -361,7 +378,7 @@ const UI = {
         return;
       }
       if (onClose) onClose();
-    });
+    }, 'generic');
   },
 
   // ---------- 切场景 ----------
