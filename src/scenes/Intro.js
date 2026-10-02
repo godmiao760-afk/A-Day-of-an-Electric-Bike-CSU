@@ -26,38 +26,15 @@ class Intro extends Phaser.Scene {
       line = LINES.charge[this.lastCharge] + '\n' + line;
     }
 
-    this.add.text(480, 80, '小电驴的一天', UI.style(22, '#9ca3af')).setOrigin(0.5);
-    this.add.text(480, 140, '第 ' + s.day + ' 天', UI.style(52, '#ffffff')).setOrigin(0.5);
-    this.add.text(480, 220, line, UI.style(22, '#fde68a', {
-      align: 'center', wordWrap: { width: 800, useAdvancedWrap: true }
-    })).setOrigin(0.5);
+    DailyUI.intro(this, line, () => this.leave());
+  }
 
-    // 今早状态
-    const money = s.money < 0 ? '欠 ¥' + (-s.money) : '¥' + s.money;
-    const allowance = s.day > 1 ? '（' + LINES.intro.allowance + ' +¥' + CONFIG.money.allowance + '）' : '';
-    this.add.text(480, 290, '电量 ' + Math.round(s.battery) + '%', UI.style(22,
-      s.battery < 40 ? '#f87171' : '#86efac')).setOrigin(0.5);
-    this.add.text(480, 325, '钱 ' + money + allowance + '　　饥饿 ' + Math.round(s.hunger) + '/100' +
-      (isHungry() ? '（饿）' : ''), UI.style(18, s.money < 0 || isHungry() ? '#fca5a5' : '#e5e7eb')).setOrigin(0.5);
-    // 累计迟到；最后一天再提醒一句
-    this.add.text(480, 360, LINES.intro.lateCount.replace('{n}', s.lateCount) +
-      (isLastDay() ? '　　' + LINES.intro.lastDay : ''),
-      UI.style(18, s.lateCount ? '#fca5a5' : '#e5e7eb')).setOrigin(0.5);
-
-    if (s.day === 1) {
-      this.add.text(480, 415, 'WASD 移动　F 交互　E 背包　8:00 前停好车', UI.style(16, '#9ca3af')).setOrigin(0.5);
-    } else if (s.hunger < CONFIG.hunger.faintWarn) {
-      // 快饿晕了：预兆（用固定文字而不是气泡，气泡会盖住下面的"按 F 出门"）
-      this.add.text(480, 415, LINES.faintWarn, UI.style(18, '#f87171')).setOrigin(0.5);
-    }
-    const tip = this.add.text(480, 470, '按 F 出门', UI.style(20, '#ffffff')).setOrigin(0.5);
-    this.tweens.add({ targets: tip, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
-
-    // 点击也能开始（顺便解锁浏览器音频）
-    this.input.once('pointerdown', () => UI.fadeTo(this, 'FindCar'));
+  leave() {
+    if (UI.blocked(this) || this.time.now < UI.lockUntil) return;
+    UI.fadeTo(this, 'FindCar');
   }
 
   update() {
-    if (UI.pressedF(this)) UI.fadeTo(this, 'FindCar');
+    if (UI.pressedF(this)) this.leave();
   }
 }

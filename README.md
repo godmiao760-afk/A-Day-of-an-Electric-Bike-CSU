@@ -32,7 +32,11 @@
 
 ## 快速开始
 
-游戏用到了图片和音效，需要通过本地服务器打开（直接双击 `index.html` 会加载失败）。任选一种方式：
+游戏用到了图片和音效，需要通过本地服务器打开（直接双击 `index.html` 会加载失败）。Phaser 引擎已放在 `vendor/`，运行游戏不依赖 CDN。
+
+**Windows 一键启动（推荐）：**双击 `start-game.cmd`，浏览器会自动打开 `http://127.0.0.1:8765/`。保持命令窗口打开，按 `Ctrl+C` 停止。在 VS Code 终端也可以运行 `start-game.cmd`（PowerShell 中输入 `.\start-game.cmd`）。如果 8765 端口被占用，可以运行 `python start_game.py --port 8766`。
+
+也可以任选下面的通用方式：
 
 **方式一：VS Code**
 1. 安装 **Live Server** 插件
@@ -92,7 +96,7 @@ python -m http.server 8000
 
 ## 技术实现
 
-- **引擎**：[Phaser 3.90](https://phaser.io/)（CDN 引入），原生 JavaScript，不需要构建工具
+- **引擎**：[Phaser 3.90](https://phaser.io/)（本地 `vendor/phaser.min.js`），原生 JavaScript，不需要构建工具
 - **画面**：960 × 540，Arcade 物理
 - **数据驱动**：数值集中在 `src/config.js`，文案集中在 `src/lines.js`，素材清单在 `src/assets.js`。缺图时自动用色块占位，美术和程序可以并行开发
 - **AI Coding 工具**：Claude Code
