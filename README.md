@@ -2,6 +2,11 @@
 
 ![封面](assets/img/cover/cover.png)
 
+
+**Play online:** [Campus scooter game](https://minicamp-scooter-assets.netlify.app/)
+
+The Netlify release was updated on 2026-10-03 with two-way traffic, varied rider sprites, and distance-based watering truck audio.
+
 > 一款把大学生"骑小电驴上课"的日常难题做成闯关的网页小游戏：找车、赶课、停车、充电，五天不迟到就算赢。
 
 **主题：Reimagine Campus** · 黑客松作品 · Phaser 3 网页游戏，浏览器打开即玩，一局 5–10 分钟。
