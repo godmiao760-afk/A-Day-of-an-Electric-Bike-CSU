@@ -24,6 +24,7 @@ class Boot extends Phaser.Scene {
     // 缺失的贴图生成色块
     for (const [key, a] of Object.entries(ASSETS.images)) {
       if (this.textures.exists(key)) {
+        if (a.removeCheckerBackground) this.prepareRiderTexture(key);
         // 只为真实图片裁出显示帧；缺图时仍使用完整占位图。
         if (a.crop) {
           const c = a.crop;
@@ -66,5 +67,54 @@ class Boot extends Phaser.Scene {
     } else {
       this.scene.start('Title');   // 先进开始画面，按 F 再进 Intro
     }
+  }
+
+  // 只清除与画布边缘连通的浅灰棋盘格，保留人物内部的浅色衣服和车身。
+  prepareRiderTexture(key) {
+    const source = this.textures.get(key).getSourceImage();
+    const canvas = document.createElement('canvas');
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(source, 0, 0);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const { data, width, height } = pixels;
+    const seen = new Uint8Array(width * height);
+    const queue = new Int32Array(width * height);
+    let head = 0, tail = 0;
+    const visit = i => {
+      if (seen[i]) return;
+      seen[i] = 1;
+      const p = i * 4;
+      const min = Math.min(data[p], data[p + 1], data[p + 2]);
+      const max = Math.max(data[p], data[p + 1], data[p + 2]);
+      if (data[p + 3] === 0 || (min >= 185 && max - min <= 18)) {
+        data[p + 3] = 0;
+        queue[tail++] = i;
+      }
+    };
+    for (let x = 0; x < width; x++) { visit(x); visit((height - 1) * width + x); }
+    for (let y = 0; y < height; y++) { visit(y * width); visit(y * width + width - 1); }
+    while (head < tail) {
+      const i = queue[head++], x = i % width, y = Math.floor(i / width);
+      if (x > 0) visit(i - 1);
+      if (x < width - 1) visit(i + 1);
+      if (y > 0) visit(i - width);
+      if (y < height - 1) visit(i + width);
+    }
+    let left = width, top = height, right = -1, bottom = -1;
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      if (!data[(y * width + x) * 4 + 3]) continue;
+      left = Math.min(left, x); right = Math.max(right, x);
+      top = Math.min(top, y); bottom = Math.max(bottom, y);
+    }
+    if (right < left) return;
+    ctx.putImageData(pixels, 0, 0);
+    const texture = this.textures.createCanvas(key + '_clean', right - left + 1, bottom - top + 1);
+    texture.context.drawImage(canvas, left, top, texture.width, texture.height,
+      0, 0, texture.width, texture.height);
+    texture.refresh();
+    this.textures.remove(key);
+    this.textures.renameTexture(key + '_clean', key);
   }
 }

@@ -1,0 +1,45 @@
+{
+  "source": "Local game runtime, scene setup via existing Phaser scene APIs; no game source modifications",
+  "viewport": [
+    1600,
+    900
+  ],
+  "endings": [
+    [
+      "perfect",
+      0,
+      100,
+      60
+    ],
+    [
+      "pass",
+      3,
+      58,
+      35
+    ],
+    [
+      "fail",
+      6,
+      40,
+      40
+    ],
+    [
+      "police",
+      1,
+      70,
+      45
+    ],
+    [
+      "faint",
+      1,
+      30,
+      0
+    ],
+    [
+      "broke",
+      1,
+      0,
+      40
+    ]
+  ]
+}

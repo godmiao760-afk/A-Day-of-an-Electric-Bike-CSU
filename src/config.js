@@ -93,6 +93,8 @@ const CONFIG = {
     liftMinutes: 0.5         // 每扶起一辆花的游戏分钟
   },
   ride: {
+    // 洒水车音乐：距离单位为世界坐标像素，范围内平滑衰减。
+    wateringAudio: { nearDistance: 100, farDistance: 650, maxVolume: 0.55 },
     speed: 240,              // 骑行最快速度（像素/秒）（v2：200 → 240）
     sideSpeed: 200,          // 左右移动速度（v2：180 → 200）
     slopeSpeedFactor: 0.7,   // 坡道速度倍率
@@ -113,14 +115,19 @@ const CONFIG = {
     deadBatteryMinutes: 15,  // 没电推车额外花的游戏分钟
     followGap: 90,           // 同车道前后车最小间距（像素），不够就减速排队 / 变道
     laneChangeSpeed: 400,    // NPC 换道的横向速度（像素/秒）
-    wrongSameLane: 0.5,      // 平时逆行车出现在玩家这条道的概率
+    traffic: {
+      oncomingChance: 0.5,   // 所有车型都有来车 / 去车，方向与车型无关
+      wrongWayChance: 0.08, // 少量骑手在对向半幅逆行，大车不逆行
+      crossLaneChance: 0.12, // 少量骑手允许借对向车道绕行
+      laneChangeCooldownMs: 2200,
+    },
     runProtectMs: 2000,      // 硬闯成功后的无敌时间
     // 有真图时的显示尺寸（像素）；没图时按占位色块原尺寸
     // body：碰撞框占显示尺寸的比例 [宽, 高]；不在这里的障碍（汽车、校车）按 [0.8, 0.85]
     sizes: {
       rider:    { width: 36, height: 84, body: [0.75, 0.75] },  // 主角骑车（俯视）
       delivery: { width: 40, height: 86, body: [0.8, 0.85] },   // 外卖车
-      wrong:    { width: 34, height: 80, body: [0.8, 0.85] },   // 逆行车（没专门的图时用别的同学骑车图 + 染色）
+      wrong:    { width: 34, height: 80, body: [0.8, 0.85] },   // 其他同学的电动车骑手
       walker:   { width: 42, height: 63, body: [0.5, 0.7] },    // 横穿的行人（原图左右留白多，碰撞框窄一点）
       bus:      { width: 58, height: 184, body: [0.85, 0.92] }, // 校车 / 洒水车
       car:      { width: 56, height: 100, body: [0.85, 0.9] },  // 小轿车（校外）
@@ -132,13 +139,12 @@ const CONFIG = {
     // 道路真图：放大倍数 + 图里路面中线的 x（原图像素）；倍数按"图里路面宽 × 倍数 ≈ 游戏路宽 400"算
     roadArt:  { scale: 1.53, centerX: 517 },   // road_tile（图里路面约 386–648）
     landmark: { scale: 0.89, centerX: 766 },   // road_stadium（图里路面约 540–990）
-    wrongTints: [0xa5d8ff, 0xfecaca, 0xbbf7d0, 0xe9d5ff],  // 逆行同学的染色，免得和主角长一样
     walkerFrameRate: 8,      // 行人走路动画帧率
     fallStandMs: 700,        // 趴在地上多久后站起来看着车（毫秒）
     liftDoneMs: 450,         // 扶正后停一下再骑上去（毫秒）
     // 早高峰单行道：每天每条路线掷一次 chance；range 路段（路程比例）里逆行权重 × wrongMul，
-    // 逆行车出现在玩家这条道的概率变成 sameLaneChance（平时 0.5）
-    oneWay: { chance: 0.5, range: [0.3, 0.7], wrongMul: 3, sameLaneChance: 0.8 },
+    // 单行路段提高骑手逆行概率，但仍保留左右半幅的主要车流方向
+    oneWay: { chance: 0.5, range: [0.3, 0.7], wrongMul: 3 },
     // 红绿灯：绿 → 黄 → 红 循环；红灯（含黄灯）时 NPC 停在停止线前，玩家闯线按 catchChance 被抓拍罚款
     trafficLight: {
       greenMs: 6000, yellowMs: 1500, redMs: 5000,

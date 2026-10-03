@@ -116,7 +116,17 @@ const ASSETS = {
       path: 'assets/img/vehical/7.png' },
     npc_delivery: { w: 32, h: 56,  color: 0xf97316, file: true,
       path: 'assets/img/vehical_with_driver/delivery.png' }, // 外卖车（带骑手）
-    npc_wrong:    { w: 32, h: 56,  color: 0xef4444, file: false }, // 逆行车
+    // 其他电动车骑手；原图的棋盘格是实心背景，加载时去掉并裁紧。
+    npc_wrong: { w: 34, h: 80, color: 0xef4444, file: true,
+      path: 'assets/img/character/riding/student_nohelmet_red_generated.png', removeCheckerBackground: true },
+    npc_rider_green: { w: 34, h: 80, color: 0x16a34a, file: true,
+      path: 'assets/img/character/riding/student_nohelmet_green_generated.png', removeCheckerBackground: true },
+    npc_rider_helmet_blue: { w: 34, h: 80, color: 0x2563eb, file: true,
+      path: 'assets/img/character/riding/student_helmet_blue_generated.png', removeCheckerBackground: true },
+    npc_rider_helmet_yellow: { w: 34, h: 80, color: 0xeab308, file: true,
+      path: 'assets/img/character/riding/student_helmet_yellow_generated.png', removeCheckerBackground: true },
+    npc_rider_scooter_blue: { w: 34, h: 80, color: 0x2563eb, file: true,
+      path: 'assets/img/character/riding/rider_scooter_blue_generated.png', removeCheckerBackground: true },
     npc_walker:   { w: 28, h: 28,  color: 0xa855f7, file: false }, // 行人（缺下面的逐帧时才用）
     // 骑行横穿马路的行人：男生 / 女生，左右各 3 帧（342×512）
     walker_boy_left_1:   { w: 342, h: 512, color: 0xa855f7, file: true, path: 'assets/img/character/boy_walker/walk-left-1.png' },

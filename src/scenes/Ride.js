@@ -145,7 +145,7 @@ class Ride extends Phaser.Scene {
     }
 
     // ---- 主角 ----
-    this.player = this.physics.add.sprite(this.LANES[1], this.startY, 'rider');
+    this.player = this.physics.add.sprite(this.LANES[2], this.startY, 'rider');
     this.setRiderLook();
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(10);
@@ -168,7 +168,7 @@ class Ride extends Phaser.Scene {
     this.presses = 0;
     this.ending = false;
     this.wateringBgm = null;
-    this.events.once('shutdown', () => this.stopWateringBgm(true));
+    this.events.once('shutdown', () => this.stopWateringBgm());
     this.warnedLow = false;
     this.warnedSlope = false;
     this.warnedPolice = false;
@@ -196,6 +196,7 @@ class Ride extends Phaser.Scene {
     const f = UI.pressedF(this);
     if (UI.pressedE(this)) UI.say(this, LINES.backpack.noRide, this.player);
     this.trafficStep(delta);   // 车道让行规则：弹窗、摔倒时障碍照样在动，所以放在最前面每帧都跑
+    this.updateWateringBgm();
     if (this.lightY) { this.updateLight(); this.checkLightPass(); }   // 红绿灯：灯色刷新 + 闯灯判定
     if (UI.blocked(this) || this.ending) { this.player.setVelocity(0); return; }
 
@@ -384,30 +385,35 @@ class Ride extends Phaser.Scene {
     const cam = this.cameras.main;
     const top = cam.scrollY;
     const bottom = cam.scrollY + 540;
-    const lane = Phaser.Utils.Array.GetRandom(this.LANES);
     const type = this.pickType();
+    const T = CONFIG.ride.traffic;
+    // 来车往下、去车往上；先选方向，再选对应半幅，车型不再绑定方向。
+    const dir = Math.random() < T.oncomingChance ? 1 : -1;
+    const isRider = type === 'delivery' || type === 'wrong';
+    const wrongChance = T.wrongWayChance * (this.inOneWay(p.y) ? CONFIG.ride.oneWay.wrongMul : 1);
+    const wrongWay = !this.dream && isRider && Math.random() < wrongChance;
+    const lane = Phaser.Utils.Array.GetRandom(this.directionLanes(wrongWay ? -dir : dir));
     let o;
 
     if (type === 'delivery') {
-      // 外卖车：从后面冲上来（梦里不抢行，只正常开）
+      // 外卖车两向都有：去车从后方赶上，来车从前方驶近。
       const rush = this.dream ? 1.1 : 1.7;
-      o = this.addCar(type, 'npc_delivery', lane, bottom + 60, -CONFIG.ride.speed * rush);
+      o = this.addCar(type, 'npc_delivery', lane, dir > 0 ? top - 80 : bottom + 60, dir * CONFIG.ride.speed * rush);
       if (!o) return;
-      if (!this.dream) {
+      if (!this.dream && dir < 0) {
         // 屏幕底部闪一个"！"，提醒后面有车冲上来
         const warn = this.add.text(o.x, 530, '！', UI.style(30, '#f97316'))
           .setOrigin(0.5, 1).setScrollFactor(0).setDepth(900);
         this.tweens.add({ targets: warn, alpha: 0, duration: 900, onComplete: () => warn.destroy() });
       }
     } else if (type === 'wrong') {
-      // 逆行车：平时一半概率就在玩家这条道上，单行道路段概率更高
-      // 没有专门的逆行图时，用"别的同学骑车"（rider 图 + 染色，不戴头盔）
-      const same = this.inOneWay(p.y) ? CONFIG.ride.oneWay.sameLaneChance : CONFIG.ride.wrongSameLane;
-      const key = UI.hasArt('npc_wrong') || !UI.hasArt('rider') ? 'npc_wrong' : 'rider';
-      o = this.addCar(type, key, Math.random() < same ? this.nearestLane(p.x) : lane, top - 80, 140);
+      // 旧配置里的 wrong 权重代表普通电动车，不再把所有电动车都当成逆行。
+      // 从独立的电动车骑手素材里随机选，保留原本的服装和车辆颜色。
+      const riders = ['npc_wrong', 'npc_rider_green', 'npc_rider_helmet_blue',
+        'npc_rider_helmet_yellow', 'npc_rider_scooter_blue'].filter(k => UI.hasArt(k));
+      const key = riders.length ? Phaser.Utils.Array.GetRandom(riders) : 'npc_wrong';
+      o = this.addCar(type, key, lane, top - 80, dir * Phaser.Math.Between(125, 175));
       if (!o) return;
-      o.setFlipY(true);
-      if (key === 'rider') o.setTint(Phaser.Utils.Array.GetRandom(CONFIG.ride.wrongTints));
     } else if (type === 'walker') {
       // 行人：突然横穿（横着走，不占车道）；有图就随机男生 / 女生，朝走的方向播动画
       const fromLeft = Math.random() < 0.5;
@@ -420,40 +426,49 @@ class Ride extends Phaser.Scene {
       o.setVelocityX(vx);
       o.setData('type', type).setData('lane', null).setData('speed', vx);
     } else if (type === 'car') {
-      // 汽车（校外）：体积大，同向慢慢开，挡路；两款小轿车里随机挑一辆有图的
+      // 汽车（校外）：两向通行；两款小轿车里随机挑一辆有图的。
       const cars = ['npc_car', 'npc_car_2'].filter(k => UI.hasArt(k));
-      o = this.addCar(type, cars.length ? Phaser.Utils.Array.GetRandom(cars) : 'npc_car', lane, top - 120, -90);
+      o = this.addCar(type, cars.length ? Phaser.Utils.Array.GetRandom(cars) : 'npc_car', lane, top - 120, dir * 90);
     } else {
       // 校车：又大又慢，挡在前面
       // 大车：校车 / 洒水车各两款，有图的里面随机挑一辆（都没图就用 npc_bus 色块）
       const bigs = ['npc_bus', 'npc_bus_2', 'npc_cart', 'npc_cart_2'].filter(k => UI.hasArt(k));
       const big = bigs.length ? Phaser.Utils.Array.GetRandom(bigs) : 'npc_bus';
-      o = this.addCar('bus', big, lane, top - 160, -50);
-      if (o && big.startsWith('npc_cart')) this.startWateringBgm();
+      o = this.addCar('bus', big, lane, top - 160, dir * 50);
     }
     if (!o) return;
     this.sizeNpc(o, type);
   }
 
-  // 在车道上放一辆车：出生点 followGap 内同道已有车就换一条空道；四条都有就这次不生成（返回 null）
+  // 方向对应的正常半幅：左侧来车，右侧去车。
+  directionLanes(dir) {
+    return dir > 0 ? this.LANES.slice(0, 2) : this.LANES.slice(2);
+  }
+
+  // 出生点被占用只尝试同一半幅，避免拥堵时把车流随机塞进对向车道。
   addCar(type, key, want, y, vy) {
     // 出生点检查用实际显示高度：有真图按 sizes，没图按占位图
     const S = CONFIG.ride.sizes[type];
     const h = S && UI.hasArt(key) ? S.height : this.textures.getFrame(key).height;
-    const lanes = [want].concat(Phaser.Utils.Array.Shuffle(this.LANES.filter(x => x !== want)));
+    const half = this.directionLanes(want < (this.ROAD_L + this.ROAD_R) / 2 ? 1 : -1);
+    const lanes = [want].concat(Phaser.Utils.Array.Shuffle(half.filter(x => x !== want)));
     const x = lanes.find(x => this.laneFree(x, y, h, null));
     if (x === undefined) return null;
     const o = this.npcs.create(x, y, key);
     o.setVelocityY(vy);
+    o.setAngle(vy > 0 ? 180 : 0);
     // type：障碍类型；lane：所在（或正要换去）的车道；speed：正常车速，排队 / 停下后恢复用
     o.setData('type', type).setData('lane', x).setData('speed', vy);
+    const rider = type === 'wrong' || type === 'delivery';
+    o.setData('wrongWay', !this.directionLanes(Math.sign(vy)).includes(x));
+    o.setData('canCrossLane', !this.dream && rider && Math.random() < CONFIG.ride.traffic.crossLaneChance);
+    o.setData('nextLaneChange', 0);
     return o;
   }
 
-  // 按路线配置的权重随机选障碍类型；玩家在单行道路段时逆行权重 × wrongMul
+  // 按路线配置权重选车型；逆行概率在选好方向后独立决定。
   pickType() {
     const w = Object.assign({}, this.route.npc);
-    if (w.wrong && this.inOneWay(this.player.y)) w.wrong *= CONFIG.ride.oneWay.wrongMul;
     const total = Object.values(w).reduce((a, b) => a + b, 0);
     let r = Math.random() * total;
     for (const [k, v] of Object.entries(w)) {
@@ -571,12 +586,19 @@ class Ride extends Phaser.Scene {
 
   // 往左右相邻的空道换，换成功返回 true
   changeLane(o) {
+    if (this.time.now < o.getData('nextLaneChange')) return false;
     const i = this.LANES.indexOf(o.getData('lane'));
-    const side = Phaser.Utils.Array.Shuffle([i - 1, i + 1])
-      .map(j => this.LANES[j])
-      .find(x => x !== undefined && this.laneFree(x, o.y, o.displayHeight, o));
+    const home = this.directionLanes(Math.sign(o.getData('speed')));
+    const adjacent = Phaser.Utils.Array.Shuffle([i - 1, i + 1])
+      .map(j => this.LANES[j]).filter(x => x !== undefined);
+    // 优先本方向的车道；少量骑手在本侧堵住时允许越线，之后优先回本侧。
+    const candidates = adjacent.filter(x => home.includes(x));
+    if (o.getData('canCrossLane')) candidates.push(...adjacent.filter(x => !home.includes(x)));
+    const side = candidates.find(x => this.laneFree(x, o.y, o.displayHeight, o));
     if (side === undefined) return false;
     o.setData('lane', side);   // x 在 trafficStep 里慢慢挪过去
+    o.setData('wrongWay', !home.includes(side));
+    o.setData('nextLaneChange', this.time.now + CONFIG.ride.traffic.laneChangeCooldownMs);
     return true;
   }
 
@@ -603,7 +625,12 @@ class Ride extends Phaser.Scene {
       }
 
       const front = this.carAhead(o);
-      if (!front) { o.setVelocityY(speed); return; }   // 前面空了，恢复正常车速
+      if (!front) {
+        // 借道 / 逆行的骑手有空位就回到正常半幅，避免长期占住对向车流。
+        if (!changing && o.getData('wrongWay')) this.changeLane(o);
+        o.setVelocityY(speed);
+        return;
+      }
       // 前车的速度夹在 [自己的速度, 0] 之间：同向慢车 → 跟着排队；迎面来车 / 停着的车 → 停下
       const follow = speed < 0 ? Phaser.Math.Clamp(front.body.velocity.y, speed, 0)
                                : Phaser.Math.Clamp(front.body.velocity.y, 0, speed);
@@ -614,8 +641,8 @@ class Ride extends Phaser.Scene {
         // 外卖车：换到旁边空道超车（可能并进玩家的道），换不了就先跟着
         if (!this.changeLane(o)) o.setVelocityY(follow);
       } else if (type === 'wrong') {
-        // 逆行车：迎面有车就往旁边空道躲，躲不开就停下
-        if (!this.changeLane(o)) o.setVelocityY(0);
+        // 普通电动车也会绕过慢车；无法变道时按前车速度排队。
+        if (!this.changeLane(o)) o.setVelocityY(follow);
       } else {
         // 汽车 / 校车：减速排队
         o.setVelocityY(follow);
@@ -645,28 +672,35 @@ class Ride extends Phaser.Scene {
     this.npcs.getChildren().slice().forEach(o => {
       if (o.y > top + 900 || o.y < top - 900 || o.x < 150 || o.x > 810) o.destroy();
     });
-    if (!this.npcs.getChildren().some(o => String(o.texture.key).startsWith('npc_cart'))) {
-      this.stopWateringBgm();
+  }
+
+  // 最近的洒水车决定音量，使用世界坐标，镜头滚动不影响距离。
+  updateWateringBgm() {
+    let distance = Infinity;
+    for (const o of this.npcs.getChildren()) {
+      if (!o.active || !String(o.texture.key).startsWith('npc_cart')) continue;
+      distance = Math.min(distance, Math.hypot(o.x - this.player.x, o.y - this.player.y));
     }
+    if (distance === Infinity) { this.stopWateringBgm(); return; }
+    const { nearDistance, farDistance, maxVolume } = CONFIG.ride.wateringAudio;
+    const t = Phaser.Math.Clamp((distance - nearDistance) / (farDistance - nearDistance), 0, 1);
+    const volume = maxVolume * (1 - t * t * (3 - 2 * t));
+    // 范围外保留播放进度，来回经过边界时音乐不会重复从头开始。
+    if (!this.wateringBgm && volume > 0) this.startWateringBgm();
+    if (this.wateringBgm) this.wateringBgm.setVolume(volume);
   }
 
   startWateringBgm() {
     if (this.wateringBgm || !this.cache.audio.exists('watering_bgm')) return;
-    this.wateringBgm = this.sound.add('watering_bgm', { loop: true, volume: 0.35 });
+    this.wateringBgm = this.sound.add('watering_bgm', { loop: true, volume: 0 });
     this.wateringBgm.play();
   }
 
-  stopWateringBgm(immediate = false) {
+  stopWateringBgm() {
     if (!this.wateringBgm) return;
-    const sound = this.wateringBgm;
+    this.wateringBgm.stop();
+    this.wateringBgm.destroy();
     this.wateringBgm = null;
-    if (immediate) {
-      sound.stop();
-      sound.destroy();
-      return;
-    }
-    this.tweens.add({ targets: sound, volume: 0, duration: 900,
-      onComplete: () => { sound.stop(); sound.destroy(); } });
   }
 
   // ---------- 被撞 ----------
@@ -690,7 +724,7 @@ class Ride extends Phaser.Scene {
 
     // 没摔死：可能触发"争辩判责"（按交通规范判这事儿谁负责）
     if (Math.random() < CONFIG.ride.dispute.chance) {
-      this.dispute(o.getData('type'));
+      this.dispute(o.getData('type'), o);
       this.invUntil = this.time.now + CONFIG.ride.invincibleMs;
       return;
     }
@@ -770,10 +804,16 @@ class Ride extends Phaser.Scene {
 
   // ---------- 争辩判责 ----------
   // 撞上 type 类型的障碍后随机出题：判对和平解决；判错对方报警（等交警 + 自己有责任时吃罚单）
-  dispute(type) {
+  dispute(type, obstacle) {
     const D = CONFIG.ride.dispute;
     const all = LINES.dispute.questions;
-    const fit = all.filter(q => q.types && q.types.includes(type));
+    const fit = all.filter(q => {
+      if (!q.types || !q.types.includes(type)) return false;
+      // 车型已经与方向分离，正常电动车不能被题目误称为逆行车，来向外卖车也不是后方追尾。
+      if (q.types.length === 1 && q.types[0] === 'wrong') return obstacle.getData('wrongWay');
+      if (q.types.length === 1 && q.types[0] === 'delivery') return obstacle.getData('speed') < 0;
+      return true;
+    });
     const q = UI.rand(fit.length ? fit : all);
     this.player.setVelocity(0);
     UI.choice(this, q.q, q.opts, i => {

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>小电驴的一天</title>
+  <link rel="icon" href="data:,">
+  <style>
+    html, body { margin: 0; padding: 0; background: #111; overflow: hidden; }
+    #game { width: 100vw; height: 100vh; }
+    #startup-status { position: fixed; inset: 0; display: grid; place-items: center; color: #fff; font: 20px sans-serif; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="startup-status" role="status">正在启动游戏…</div>
+  <script src="assets/vendor/phaser-3.90.0.min.js"></script>
+
+  <!-- 加载顺序不能乱：数据 → 状态 → 工具 → 场景 → main -->
+  <script src="src/config.js"></script>
+  <script src="src/lines.js"></script>
+  <script src="src/assets.js"></script>
+  <script src="src/state.js"></script>
+  <script src="src/ui.js"></script>
+  <script src="src/scenes/Boot.js"></script>
+  <script src="src/scenes/Title.js"></script>
+  <script src="src/scenes/Intro.js"></script>
+  <script src="src/scenes/FindCar.js"></script>
+  <script src="src/scenes/NodeScene.js"></script>
+  <script src="src/scenes/Ride.js"></script>
+  <script src="src/scenes/Park.js"></script>
+  <script src="src/scenes/Class.js"></script>
+  <script src="src/scenes/Charge.js"></script>
+  <script src="src/scenes/Result.js"></script>
+  <script src="src/scenes/Ending.js"></script>
+  <script src="src/main.js"></script>
+</body>
+</html>
