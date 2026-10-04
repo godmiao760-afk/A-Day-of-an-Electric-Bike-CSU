@@ -208,8 +208,15 @@ const CONFIG = {
     // 教学楼车满为患只有 2 个空位 + 完整玩法；食堂 / 后湖 / 图书馆都是简易停车（好停、撞不倒）
     places: {
       teach:   { perRow: 28, free: 2, domino: true,  illegal: true },
-      canteen: { perRow: 10, free: 4, domino: false, illegal: false },
-      houhu:   { perRow: 8,  free: 3, domino: false, illegal: false },
+      // 新背景自带车位线和招牌。坐标按原图像素记录，场景统一缩放到画面。
+      canteen: { perRow: 9, free: 4, domino: false, illegal: false,
+        art: { key: 'bg_park_canteen', width: 1672, height: 941,
+          columns: [454, 556, 657, 759, 860, 962, 1063, 1165, 1266], rows: [282, 728],
+          slotWidth: 66, slotHeight: 124, bounds: [90, 113, 800, 402] } },
+      houhu:   { perRow: 7, free: 3, domino: false, illegal: false,
+        art: { key: 'bg_park_houhu', width: 1672, height: 941,
+          columns: [425, 532, 638, 745, 851, 957, 1064], rows: [304, 705],
+          slotWidth: 60, slotHeight: 118, bounds: [65, 130, 800, 385] } },
       library: { perRow: 10, free: 3, domino: false, illegal: false }
     },
     // 多米诺：骑 / 推着车撞到别人的车，可能倒一排，全部扶起来才能停车

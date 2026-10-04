@@ -18,6 +18,8 @@ const ASSETS = {
     bg_traffic:      { w: 1536, h: 1024, color: 0x1e293b, file: true, path: 'assets/img/background/traffic_scene_clear.png' }, // 校门口选路线：交警路口
     bg_park:         { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/parking_compact_day.png' }, // 教学楼车棚
     bg_park_clear:   { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/parking_clear_day.png' },   // 备用：白天车棚
+    bg_park_canteen: { w: 1672, h: 941, color: 0x886644, file: true, path: 'assets/img/background/parking_canteen.png' },
+    bg_park_houhu:   { w: 1672, h: 941, color: 0x203343, file: true, path: 'assets/img/background/parking_houhu.png' },
     bg_charge:       { w: 1536, h: 1024, color: 0x0b1026, file: true, path: 'assets/img/background/charging_bays_compact_night.png' }, // 夜晚充电区
     bg_charge_day:   { w: 1536, h: 1024, color: 0x374151, file: true, path: 'assets/img/background/charging_bays_clear.png' }, // 备用：白天充电区
     bg_police:       { w: 1536, h: 1024, color: 0x1e3a8a, file: true, path: 'assets/img/background/police_station.png' },     // 派出所结局背景

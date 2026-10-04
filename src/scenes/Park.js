@@ -20,14 +20,18 @@ class Park extends Phaser.Scene {
     UI.sfx(this, 'tow', { loop: true });
     const P = CONFIG.park;
     const PL = P.places[this.place];   // 这个停车场景的布局参数
+    const art = PL.art && UI.hasArt(PL.art.key) && this.textures.exists(PL.art.key) ? PL.art : null;
     this.speed = P.rideSpeed * (this.pushing ? P.pushSpeedFactor : 1) * speedMul();   // 饿了更慢
 
     // ---- 布局：两排车棚，中间是通道（宽窄跟着车位数走）----
     const W = Math.max(960, 260 + PL.perRow * 44 + 108), H = 540;
-    this.physics.world.setBounds(0, 70, W, H - 70);
+    if (art) this.physics.world.setBounds(...art.bounds);
+    else this.physics.world.setBounds(0, 70, W, H - 70);
     this.cameras.main.setBounds(0, 0, W, H);
 
-    if (this.place === 'teach' && UI.hasArt('bg_park')) {
+    if (art) {
+      this.add.image(0, 0, art.key).setOrigin(0).setDisplaySize(W, H);
+    } else if (this.place === 'teach' && UI.hasArt('bg_park')) {
       // 有真图：按宽铺满、保持比例，底对齐（车棚空地铺满画面），顶上加一条暗色标题栏
       this.add.image(0, H, 'bg_park').setOrigin(0, 1).setDisplaySize(W, W * 1024 / 1536);
       this.add.rectangle(0, 0, W, 70, 0x000000, 0.55).setOrigin(0);
@@ -35,21 +39,29 @@ class Park extends Phaser.Scene {
       this.add.tileSprite(0, 0, W, H, 'road').setOrigin(0);
       this.add.tileSprite(0, 0, W, 70, 'building').setOrigin(0);
     }
-    this.add.text(W / 2, 35, LINES.park.places[this.place], UI.style(26, '#fecaca')).setOrigin(0.5);
+    if (!art) this.add.text(W / 2, 35, LINES.park.places[this.place], UI.style(26, '#fecaca')).setOrigin(0.5);
     // 教学楼门口（左侧入口）
-    this.add.text(20, 470, '← 入口', UI.style(18, '#9ca3af'));
+    this.add.text(art ? 106 : 20, art ? 319 : 470, '← 入口', UI.style(18, art ? '#fff2d7' : '#9ca3af',
+      art ? { backgroundColor: '#253c3c', padding: { x: 6, y: 3 } } : {}));
 
     // 车位：上排 y=150，下排 y=400
-    const SLOT_GAP = 44, FIRST_X = 260, PER_ROW = PL.perRow;
-    const rowsY = [150, 400];
+    const SLOT_GAP = 44, FIRST_X = 260, PER_ROW = art ? art.columns.length : PL.perRow;
+    const sx = art ? W / art.width : 1, sy = art ? H / art.height : 1;
+    const rowsY = art ? art.rows.map(y => y * sy) : [150, 400];
+    this.parkBikeSize = art ? {
+      width: Math.min(P.bike.width, art.slotWidth * sx - 8),
+      height: Math.min(P.bike.height, art.slotHeight * sy - 6)
+    } : P.bike;
     const all = [];
     rowsY.forEach((y, r) => {
-      for (let i = 0; i < PER_ROW; i++) all.push({ x: FIRST_X + i * SLOT_GAP, y, row: r, idx: i });
+      for (let i = 0; i < PER_ROW; i++) all.push({ x: art ? art.columns[i] * sx : FIRST_X + i * SLOT_GAP, y, row: r, idx: i });
     });
     // 车棚顶棚示意
-    const g = this.add.graphics();
-    g.fillStyle(0x000000, 0.25);
-    rowsY.forEach(y => g.fillRect(FIRST_X - 30, y - 45, PER_ROW * SLOT_GAP + 16, 90));
+    if (!art) {
+      const g = this.add.graphics();
+      g.fillStyle(0x000000, 0.25);
+      rowsY.forEach(y => g.fillRect(FIRST_X - 30, y - 45, PER_ROW * SLOT_GAP + 16, 90));
+    }
 
     // 门口禁停区：入口旁、上排车棚左边，只画出来，不挡路（只有教学楼有）
     this.noPark = null;
@@ -71,18 +83,21 @@ class Park extends Phaser.Scene {
     all.forEach(s => {
       if (free.includes(s)) {
         const slot = this.add.image(s.x, s.y, 'slot');
+        if (art) slot.setDisplaySize(art.slotWidth * sx - 4, art.slotHeight * sy - 4).setTint(0xd5ec8d);
         this.tweens.add({ targets: slot, alpha: 0.4, duration: 600, yoyo: true, repeat: -1 });
         this.slots.push(slot);
       } else {
         // 有真图就用 7 种颜色的别人的车，没图用 bike_other + 随机染色
-        const art = UI.hasArt('dorm_bike_1');
-        const key = art ? 'dorm_bike_' + Phaser.Math.Between(1, 7) : 'bike_other';
-        const b = this.bikes.create(s.x + Phaser.Math.Between(-4, 4), s.y, key);
-        if (art) b.setDisplaySize(P.bike.width, P.bike.height);
+        const bikeArt = UI.hasArt('dorm_bike_1');
+        const key = bikeArt ? 'dorm_bike_' + Phaser.Math.Between(1, 7) : 'bike_other';
+        const jitter = art ? 1 : 4;
+        const b = this.bikes.create(s.x + Phaser.Math.Between(-jitter, jitter), s.y, key);
+        if (bikeArt) b.setDisplaySize(this.parkBikeSize.width, this.parkBikeSize.height);
         else b.setTint(Phaser.Display.Color.HSVToRGB(Math.random(), 0.15, 1).color);
-        b.setAngle(Phaser.Math.Between(-12, 12));
+        b.setAngle(art ? Phaser.Math.Between(-4, 4) : Phaser.Math.Between(-12, 12));
         b.refreshBody();
-        if (art) b.body.setSize(P.bike.bodyWidth, P.bike.bodyHeight);   // 静态体按世界像素，要放在 refreshBody 之后
+        if (bikeArt) b.body.setSize(Math.min(P.bike.bodyWidth, this.parkBikeSize.width - 4),
+          Math.min(P.bike.bodyHeight, this.parkBikeSize.height - 4));   // 静态体按世界像素，要放在 refreshBody 之后
         // 记下排号、序号、原来的角度和 x（扶起来时复原）
         b.setData({ row: s.row, idx: s.idx, angle0: b.angle, x0: b.x, fallen: false });
         this.rows[s.row][s.idx] = b;
@@ -91,7 +106,7 @@ class Park extends Phaser.Scene {
 
     // ---- 主角 ----
     // 骑车：俯视图，跟着方向转；推车：侧视图（人扶着车），不转，只按左右翻转
-    this.player = this.physics.add.sprite(80, 275, this.pushing ? 'pusher' : 'rider');
+    this.player = this.physics.add.sprite(art ? 130 : 80, 275, this.pushing ? 'pusher' : 'rider');
     const look = this.pushing ? P.pusher : P.rider;
     const key = this.pushing ? 'pusher' : 'rider';
     if (UI.hasArt(key)) UI.look(this.player, key, look.width, look.height);
@@ -197,7 +212,7 @@ class Park extends Phaser.Scene {
     this.player.anims.stop();    // 推车走路动画停掉，不然会把停好的车图换回去
     this.player.setTexture('bike').setAngle(0).setFlipX(false);
     // 有真图：和车棚里别人的车一样大
-    if (UI.hasArt('bike')) this.player.setDisplaySize(CONFIG.park.bike.width, CONFIG.park.bike.height);
+    if (UI.hasArt('bike')) this.player.setDisplaySize(this.parkBikeSize.width, this.parkBikeSize.height);
     else this.player.setScale(1);
     this.player.setPosition(x, y);
     UI.sfx(this, 'park');

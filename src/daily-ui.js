@@ -1,4 +1,4 @@
-// 每日开场和结算共用的「骑行仪表盘」。只负责绘制，不改变 GameState。
+// 每日开场、课程和结算共用的「骑行仪表盘」。只负责绘制，不改变 GameState。
 const DailyUI = {
   colors: { text: '#f5f4dc', muted: '#b5c8b5', accent: '#d5ec8d', warning: '#f0b595' },
 
@@ -112,6 +112,51 @@ const DailyUI = {
       15, s.hunger < CONFIG.hunger.faintWarn ? c.warning : c.muted);
     this.text(scene, 49, 477, 'WASD 移动     F 交互     E 背包', 13, c.muted);
     this.button(scene, 648, 449, 258, 'F', '出发找车', leave);
+  },
+
+  classResult(scene, summary, proceed) {
+    const s = GameState;
+    const c = this.colors;
+    const { morning, late, arrive, hungerBefore, batBefore, nextLabel } = summary;
+    this.base(scene);
+    this.text(scene, 47, 105, morning ? '上午课程完成' : '下午课程完成', 38, c.text, { fontStyle: 'bold' });
+    this.text(scene, 49, 159, '第 ' + s.day + ' 天 / 下课了，整理一下状态再出发。', 15, c.muted);
+    this.box(scene, 758, 111, 147, 58, 0x315647, 9);
+    this.text(scene, 777, 118, '下课时间', 12, c.muted);
+    this.text(scene, 777, 135, UI.fmt(s.clock), 24, c.accent);
+
+    this.box(scene, 43, 201, 414, 218, 0x12352f, 12, 0.82);
+    this.box(scene, 473, 201, 444, 218, 0x12352f, 12, 0.82);
+    this.text(scene, 63, 220, '到课记录', 14, c.muted);
+    this.text(scene, 63, 247, UI.fmt(arrive), 52, c.text, { fontFamily: 'Georgia, serif' });
+    this.box(scene, 307, 256, 127, 37, late ? 0x704d3d : 0x365a42, 18);
+    this.text(scene, 370, 264, late ? '迟到了' : '准时到课', 16, late ? c.warning : c.accent).setOrigin(0.5, 0);
+    this.rule(scene, 63, 325, 436, 325);
+    this.text(scene, 63, 350, '本周累计迟到', 16, c.muted);
+    this.text(scene, 434, 342, s.lateCount + ' 次', 31, s.lateCount ? c.warning : c.accent).setOrigin(1, 0);
+
+    this.text(scene, 494, 220, '饱腹度' + (isHungry() ? ' · 肚子饿了' : ''), 14, isHungry() ? c.warning : c.muted);
+    this.text(scene, 494, 248, hungerBefore + ' → ' + Math.round(s.hunger), 34, isHungry() ? c.warning : c.text);
+    const barWidth = 398;
+    this.box(scene, 495, 301, barWidth, 5, 0x36534a);
+    this.box(scene, 495, 301, barWidth * Phaser.Math.Clamp(hungerBefore / 100, 0, 1), 5, 0x71836a);
+    const remaining = barWidth * Phaser.Math.Clamp(s.hunger / 100, 0, 1);
+    if (remaining > 0) this.box(scene, 495, 301, remaining, 5, isHungry() ? 0xe7a076 : 0xd5ec8d);
+    this.rule(scene, 494, 325, 895, 325);
+    this.text(scene, 494, 346, morning ? '当前电量' : '白天耗电', 14, c.muted);
+    this.text(scene, 895, 336, morning ? Math.round(s.battery) + '%' : batBefore + '% → ' + Math.round(s.battery) + '%',
+      27, s.battery < 40 ? c.warning : c.text).setOrigin(1, 0);
+    this.text(scene, 494, 384, morning ? '午间出行，记得留意续航。' : LINES.classScene.drain, 12, c.muted);
+
+    const warning = s.hunger > 0 && s.hunger < CONFIG.hunger.faintWarn;
+    const note = s.hunger <= 0 ? '体力已经耗尽……' : warning ? LINES.faintWarn :
+      morning ? '先去吃点东西，再安排下午的行程。' : '一天的课结束了，接下来安排晚间行程。';
+    this.text(scene, 49, 432, note, 15, s.hunger <= 0 || warning ? c.warning : c.muted);
+    const countdown = this.text(scene, 49, 480, '', 13, c.muted);
+    const updateCountdown = () => countdown.setText(Math.max(0, Math.ceil((summary.autoAt - scene.time.now) / 1000)) + ' 秒后自动继续 · 也可按 F');
+    updateCountdown();
+    scene.time.addEvent({ delay: 200, loop: true, callback: updateCountdown });
+    this.button(scene, 603, 465, 303, 'F', nextLabel, proceed);
   },
 
   result(scene, title, color, rows, continueDay, restart) {
