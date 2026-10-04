@@ -217,7 +217,10 @@ const CONFIG = {
         art: { key: 'bg_park_houhu', width: 1672, height: 941,
           columns: [425, 532, 638, 745, 851, 957, 1064], rows: [304, 705],
           slotWidth: 60, slotHeight: 118, bounds: [65, 130, 800, 385] } },
-      library: { perRow: 10, free: 3, domino: false, illegal: false }
+      library: { perRow: 10, free: 3, domino: false, illegal: false,
+        art: { key: 'bg_park_library', width: 1672, height: 941,
+          columns: [478, 558, 637, 717, 796, 876, 955, 1035, 1114, 1194], rows: [295, 672],
+          slotWidth: 53, slotHeight: 122, bounds: [96, 119, 760, 327] } }
     },
     // 多米诺：骑 / 推着车撞到别人的车，可能倒一排，全部扶起来才能停车
     dominoChance: 0.5,       // 撞上一次倒下的概率
