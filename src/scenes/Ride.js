@@ -71,19 +71,18 @@ class Ride extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, 960, H);
 
     // ---- 画地图 ----
-    // 有道路真图：路 + 两边景观是一张竖向可重复的图，只做一屏大小，跟着镜头滚动纹理；校内在 landmarkAt 处插一张体育场
+    // 有道路真图：校正路沿并混合首尾后循环；地标只叠加两侧景观。
     // 没图：草地 / 街道 + 灰色路面色块（避免生成超长贴图）
     this.roadArt = UI.hasArt('road_tile');
     this.bgRoad = null;
     if (this.roadArt) {
-      const A = R.roadArt;
-      this.bgGrass = this.add.tileSprite(0, 0, 960, 540, 'road_tile').setOrigin(0).setScrollFactor(0)
-        .setTileScale(A.scale);
-      this.bgGrass.tilePositionX = A.centerX - 480 / A.scale;   // 图里路中线对准屏幕中间
+      RideRoad.prepare(this, this.ROAD_L, this.ROAD_R);
+      this.bgGrass = this.add.tileSprite(0, 0, 960, 540, RideRoad.tileKey).setOrigin(0).setScrollFactor(0);
       if (this.route.landmarkAt && UI.hasArt('road_stadium')) {
-        const L = R.landmark;
-        const img = this.add.image(0, this.startY - len * this.route.landmarkAt, 'road_stadium').setScale(L.scale);
-        img.setX(480 + (img.width / 2 - L.centerX) * L.scale);   // 同样让图里路中线对准屏幕中间
+        const centerY = this.startY - len * this.route.landmarkAt;
+        const key = RideRoad.landmark(this, centerY, this.ROAD_L, this.ROAD_R);
+        const height = this.textures.get(key).getSourceImage().height;
+        this.add.image(0, Math.round(centerY - height / 2), key).setOrigin(0);
       }
     } else {
       const sideTex = this.route.side || (s.route === 'outside' ? 'road' : 'grass');   // 校外两边是街道
